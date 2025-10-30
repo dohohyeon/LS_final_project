@@ -6,39 +6,13 @@ import time
 import numpy as np
 from shared import *
 
-def show_tab_realtime(train):
-    st.title("⚡ 실시간 전력 모니터링")
-
-    st.session_state.setdefault("running", False)
-    st.session_state.setdefault("index", 0)
-    st.session_state.setdefault("stream_df", pd.DataFrame(columns=train.columns))
+def show_tab_realtime(train, speed):
+    st.title(" 실시간 전력 모니터링")
 
     kpi_ph = st.empty()
     chart_demand_ph = st.empty()
     chart_pf_ph = st.empty()
     table_ph = st.empty()
-
-    # 사이드바 제어
-    st.sidebar.header("⚙️ 스트리밍 제어")
-    speed = st.sidebar.slider("업데이트 간격(초)", 0.1, 5.0, 0.5, 0.1)
-    col1, col2 = st.sidebar.columns(2)
-
-    if not st.session_state.running:
-        if col1.button("▶ 시작"):
-            st.session_state.running = True
-            st.rerun()
-    else:
-        if col1.button("⏸ 정지"):
-            st.session_state.running = False
-            st.rerun()
-
-    if col2.button("🔄 초기화"):
-        st.session_state.index = 0
-        st.session_state.stream_df = pd.DataFrame(columns=train.columns)
-        st.session_state.running = False
-        st.rerun()
-
-    st.sidebar.write("상태:", "🟢 실행 중" if st.session_state.running else "🔴 정지됨")
 
     def update_dashboard(df_partial):
         if df_partial.empty:
@@ -78,8 +52,10 @@ def show_tab_realtime(train):
         fig2.add_hline(y=POWER_FACTOR_THRESHOLD, line_dash="dash", line_color="red", annotation_text="역률 한계")
         chart_pf_ph.plotly_chart(fig2, use_container_width=True)
 
-        table_ph.dataframe(df_partial[[COL_TIME, COL_DEMAND, COL_USAGE, COL_PF, COL_COST]].tail(10), use_container_width=True, hide_index=True)
+        table_ph.dataframe(df_partial[[COL_TIME, COL_DEMAND, COL_USAGE, COL_PF, COL_COST]].tail(10),
+                           use_container_width=True, hide_index=True)
 
+    # ✅ 실시간 업데이트 루프
     if st.session_state.running:
         for i in range(st.session_state.index, len(train)):
             if not st.session_state.running:

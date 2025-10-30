@@ -5,7 +5,7 @@ import plotly.express as px
 from shared import *
 
 def show_tab_prediction(train):
-    st.title("📊 전력 예측 결과")
+    st.title(" 전력 예측 결과")
     st.write("AI 모델을 기반으로 향후 전력 수요를 예측한 결과를 보여줍니다.")
 
     # 예시: 하루 단위 평균 전력사용량
