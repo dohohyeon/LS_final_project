@@ -1,10 +1,10 @@
 # app.py
 import streamlit as st
 from shared import load_train
+from modules.tab_0 import show_tab_home
 from modules.tab_1 import show_tab_realtime
 from modules.tab_2 import show_tab_analysis
-from modules.tab_3 import show_tab_prediction
-from modules.tab_4 import show_tab_appendix
+from modules.tab_3 import show_tab_appendix
 
 st.set_page_config(page_title="전력 모니터링 대시보드", layout="wide")
 
@@ -59,7 +59,7 @@ tab_pred, tab_rt, tab_viz, tab_appendix = st.tabs([
 ])
 
 with tab_pred:
-    show_tab_prediction(train)
+    show_tab_home(train)
 
 with tab_rt:
     # ✅ 사이드바 변수 전달
