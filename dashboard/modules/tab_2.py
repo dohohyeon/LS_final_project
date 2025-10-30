@@ -6,7 +6,7 @@ import numpy as np
 from shared import *
 
 def show_tab_analysis(train):
-    st.title("📈 전력 데이터 통계 분석")
+    st.title("전력 데이터 통계 분석")
     st.markdown("#### 🔎 필터")
 
     c1, c2, c3, c4 = st.columns([2, 3, 2, 2])
