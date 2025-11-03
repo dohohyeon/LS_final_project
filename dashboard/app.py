@@ -339,6 +339,37 @@ st.markdown("""
         width: 20px !important;
         height: 20px !important;
     }
+    /* =========================
+    📊 Tab2 전용 보고서 버튼 스타일
+    ========================= */
+    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"] {
+        width: 100% !important;
+        background-color: #007BFF !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 0 !important;
+        transition: background 0.2s ease !important;
+    }
+    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"]:hover {
+        background-color: #0056b3 !important;
+    }
+
+    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"] {
+        width: 100% !important;
+        background-color: #28A745 !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 0 !important;
+        margin-top: 8px !important;
+        transition: background 0.2s ease !important;
+    }
+    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"]:hover {
+        background-color: #218838 !important;
+    }
     </style>
 """, unsafe_allow_html=True) 
 
