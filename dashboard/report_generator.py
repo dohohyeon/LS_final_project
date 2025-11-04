@@ -16,25 +16,16 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
+# ✅ Kaleido에 폰트 경로 인식시키기
+os.environ["KALIEDO_FONT_PATHS"] = os.path.join(os.path.dirname(__file__), "fonts")
+
 # ===== ① 폰트 경로 지정 =====
 FONT_PATH = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
 
-# ===== ② Plotly 폰트 설정 (한글 깨짐 방지용) =====
-import matplotlib.font_manager as fm
-from pathlib import Path
-
-# Kaleido가 한글 폰트를 찾을 수 있도록 등록
-if os.path.exists(FONT_PATH):
-    font_name = Path(FONT_PATH).stem  # NanumGothic-Regular
-    # Plotly 기본 폰트 설정
-    pio.defaults.template = "plotly_white"
-    pio.defaults.font = dict(family="NanumGothic", size=12, color="#222")
-    pio.templates["plotly_white"].layout.font.family = "NanumGothic"
-else:
-    print("⚠️ NanumGothic 폰트를 찾지 못했습니다. fonts 폴더 확인 필요.")
-
-# 나머지 코드는 그대로 유지 ↓
-
+# ===== ② Plotly 한글 폰트 설정 =====
+pio.templates.default = "plotly_white"
+pio.templates["plotly_white"].layout.font.family = "NanumGothic"
+pio.defaults.font = dict(family="NanumGothic", size=12, color="#222")
 
 # ============ 공통 표 스타일 ============
 def format_table_uniform(table):
