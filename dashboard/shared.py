@@ -20,6 +20,7 @@ COL_LEAD_PF = "진상역률(%)"
 COL_LAG_VAR = "지상무효전력량(kVarh)"
 COL_LEAD_VAR = "진상무효전력량(kVarh)"
 COL_CARBON = "탄소배출량(tCO2)"
+COL_PEAK = "관리기준선(kW)"
 
 # =========================
 # 데이터 로드 및 전처리
@@ -128,6 +129,6 @@ def load_train(path="./data/raw/train_with_threshold.csv"):
         df[COL_COST] = pd.to_numeric(df[COL_COST], errors='coerce').fillna(0)
 
     df[COL_JOB] = df.get(COL_JOB, "미지정").fillna("미지정")
-    
+
     # load_train이 전처리된 모든 데이터를 반환
     return df
