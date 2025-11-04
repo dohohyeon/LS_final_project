@@ -30,19 +30,25 @@ from matplotlib import rcParams
 os.environ.setdefault("FONTCONFIG_PATH", "/usr/share/fonts/truetype/nanum")
 
 NANUM_PATH = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
-FONT_NAME = "NanumGothic"
+# ---------------------------------------------------
+# 전역 폰트 설정 (산세리프 계열 통일)
+# ---------------------------------------------------
+FONT_NAME = "Noto Sans KR, Malgun Gothic, Apple SD Gothic Neo, sans-serif"
 
 # Matplotlib
-rcParams["font.family"] = FONT_NAME
+from matplotlib import rcParams
+rcParams["font.family"] = ["Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", "sans-serif"]
 rcParams["axes.unicode_minus"] = False
 
-# Plotly: 템플릿 + 기본 폰트
+# Plotly
+import plotly.io as pio
 pio.templates.default = "plotly_white"
-pio.templates["plotly_white"].layout.font.family = FONT_NAME
 pio.defaults.font = dict(family=FONT_NAME, size=12, color="#222")
+pio.templates["plotly_white"].layout.font.family = FONT_NAME
 
 # Word
-WORD_FONT = FONT_NAME
+from docx.oxml.ns import qn
+WORD_FONT = "맑은 고딕"  # Word에서는 한국어 이름 그대로 지정 (Windows 호환성)
 
 
 # =========================
@@ -73,18 +79,16 @@ def format_table_uniform(table):
 # Plotly 폰트 강제 적용 (Kaleido 저장 직전)
 # =========================
 def _apply_korean_font(fig, family=FONT_NAME):
+    fig.layout.font.family = family
     fig.update_layout(font=dict(family=family))
-    # 축 제목/틱
     for ax in [a for a in fig.layout if str(a).startswith("xaxis") or str(a).startswith("yaxis")]:
         axis = fig.layout[ax]
         if hasattr(axis, "title") and axis.title:
             axis.title.font = dict(family=family, size=12)
         if hasattr(axis, "tickfont") and axis.tickfont:
             axis.tickfont.family = family
-    # 범례
     if hasattr(fig.layout, "legend") and fig.layout.legend:
         fig.layout.legend.font = dict(family=family, size=11)
-    # 주석
     if getattr(fig.layout, "annotations", None):
         for a in fig.layout.annotations:
             a.font = dict(family=family, size=12)
