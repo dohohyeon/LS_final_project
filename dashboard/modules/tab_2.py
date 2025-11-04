@@ -169,27 +169,46 @@ def show_tab_analysis(train):
         start_date = max(start_date, min_date)
         end_date   = min(end_date, max_date)
 
+        # 현재 기간 데이터
         period_df = df[(df[COL_TIME].dt.date >= start_date) & (df[COL_TIME].dt.date <= end_date)]
         if period_df.empty:
             st.info(f"📭 {start_date} ~ {end_date} 구간에는 데이터가 없습니다.")
             return
         filtered_df = period_df
 
-        # 전월 동일기간 계산 (연도 롤오버 포함)
+        # ==================================================
+        # ✅ 전월 동일기간 계산 (연도 롤오버 + 예외처리)
+        # ==================================================
         curr_start = pd.Timestamp(start_date)
         curr_end   = pd.Timestamp(end_date)
+
+        # 현재 기간 기준 전월 동일 일자 계산
         prev_start = (curr_start - pd.DateOffset(months=1))
         prev_end   = (curr_end - pd.DateOffset(months=1))
-        prev_start = prev_start.replace(day=min(prev_start.days_in_month, curr_start.day)).date()
-        prev_end   = prev_end.replace(day=min(prev_end.days_in_month, curr_end.day)).date()
 
-        prev_df = df[(df[COL_TIME].dt.date >= prev_start) & (df[COL_TIME].dt.date <= prev_end)]
+        # 전월 일수가 더 짧을 경우 보정 (예: 31일 → 30일)
+        prev_start = prev_start.replace(day=min(prev_start.days_in_month, curr_start.day))
+        prev_end   = prev_end.replace(day=min(prev_end.days_in_month, curr_end.day))
 
-        render_metric_cards(period_df, prev_df, f"📆 {start_date} ~ {end_date} 기간 주요 지표")
-        st.caption(f"📊 비교 구간: 전월 동일 기간 {prev_start} ~ {prev_end}")
+        prev_df = df[(df[COL_TIME].dt.date >= prev_start.date()) & (df[COL_TIME].dt.date <= prev_end.date())]
 
+        # ==================================================
+        # ✅ 카드 렌더링 및 캡션 처리
+        # ==================================================
+        render_metric_cards(
+            period_df,
+            prev_df if not prev_df.empty else None,
+            f"📆 {start_date} ~ {end_date} 기간 주요 지표"
+        )
+
+        if not prev_df.empty:
+            st.caption(f"📊 비교 구간: 전월 동일 기간 {prev_start.date()} ~ {prev_end.date()}")
+        else:
+            st.caption(
+                f"📊 {start_date} ~ {end_date} 구간의 전월 동일 기간({prev_start.date()} ~ {prev_end.date()}) 데이터가 "
+                "존재하지 않아 증감률을 표시하지 않습니다."
+            )
     else:
-        # 월별 모드: 연도 선택 제거 (2024년 고정)
         with col2:
             sel_month = st.selectbox(
                 "월 선택",
@@ -203,20 +222,32 @@ def show_tab_analysis(train):
             return
         filtered_df = curr_df
 
-        # 전월 계산
-        prev_month = sel_month - 1 if sel_month > 1 else None
-        prev_df = df[df["월"] == prev_month] if prev_month else pd.DataFrame()
+        # ==================================================
+        # ✅ 전월 계산 (연도 롤오버 + 예외처리)
+        # ==================================================
+        if sel_month > 1:
+            prev_month = sel_month - 1
+            prev_df = df[df["월"] == prev_month]
+            prev_label = f"{prev_month}월"
+        else:
+            # 1월 → 전년도 12월 데이터 탐색
+            curr_year = df["연"].max()
+            prev_year = curr_year - 1
+            prev_df = df[(df["연"] == prev_year) & (df["월"] == 12)]
+            prev_label = f"{prev_year}년 12월"
 
+        # render
         render_metric_cards(
             curr_df,
             prev_df if not prev_df.empty else None,
             f"📆 {sel_month}월 주요 지표"
         )
 
+        # ✅ 캡션 처리
         if not prev_df.empty:
-            st.caption(f"📊 비교 구간: 전월({prev_month}월) 대비 변화율")
+            st.caption(f"📊 비교 구간: 전월({prev_label}) 대비 변화율")
         else:
-            st.caption("📊 1월은 전월 데이터가 없어 증감률을 표시하지 않습니다.")
+            st.caption(f"📊 {sel_month}월은 전월 데이터가 존재하지 않아 증감률을 표시하지 않습니다.")
             
     # ---- Tab2 전용 wrapper 시작 ----
     st.markdown('<div class="tab2-scope">', unsafe_allow_html=True)
@@ -461,54 +492,102 @@ def show_tab_analysis(train):
         )
 
         # ==================================================
-        # 📊 지상 / 진상 역률 선택형 히트맵 (저역률 비율)
+        # ⚙️ 역률 적용 시간대별 작업유형 구성비 (지상 / 진상)
         # ==================================================
-        st.markdown("#### 시간대·작업유형별 저역률(90% 미만) 발생 히트맵")
+        st.markdown("#### 역률 적용 시간대별 작업유형 구성비")
 
-        pf_select = st.selectbox("역률 유형 선택", ["지상역률", "진상역률"], key="pf_heat_select")
-        pf_col = COL_LAG_PF if pf_select == "지상역률" else COL_LEAD_PF
-
-        # 역률 기준으로 저역률(90% 미만) 구간 계산
-        pf_heat_df = pf_df.copy()
-        pf_heat_df["저역률"] = (pf_heat_df[pf_col] < 90).astype(int)
-
-        # 시간대×작업유형별 평균 저역률 비율 계산
-        heat_agg = (
-            pf_heat_df.groupby(["작업유형", "시간"])["저역률"]
-            .mean()
-            .reset_index()
-        )
-        heat_agg["저역률(%)"] = heat_agg["저역률"] * 100
-
-        pivot_data = heat_agg.pivot(index="작업유형", columns="시간", values="저역률(%)")
-
-        fig_heat = px.imshow(
-            pivot_data,
-            color_continuous_scale="Reds",
-            aspect="auto",
-            labels=dict(color="저역률 발생 비율(%)"),
-            title=f"{pf_select} 기준 시간대·작업유형별 저역률(90% 미만) 발생 비율"
+        pf_select_ratio = st.selectbox(
+            "역률 구분 선택",
+            ["지상역률 적용 구간", "진상역률 적용 구간"],
+            key="pf_ratio_select"
         )
 
-        fig_heat.update_layout(
-            template="plotly_white",
-            coloraxis_colorbar=dict(
-                title="저역률 비율(%)",
-                ticksuffix="%",
-                len=0.75
-            ),
-            height=500,
-            margin=dict(t=80, b=40)
-        )
+        pf_df = filtered_df.copy()
 
-        st.plotly_chart(fig_heat, use_container_width=True)
+        # ✅ 역률 구간 정의
+        if pf_select_ratio == "지상역률 적용 구간":
+            applied_df = pf_df[(pf_df["시간"] >= 9) & (pf_df["시간"] < 23)].copy()
+            pf_label = "지상역률 적용 구간 (09시~23시)"
+        else:
+            applied_df = pf_df[(pf_df["시간"] >= 23) | (pf_df["시간"] < 9)].copy()
+            pf_label = "진상역률 적용 구간 (23시~09시)"
 
-        st.caption(
-            f"💡 선택된 {pf_select}에서 90% 미만으로 떨어진 비율을 "
-            "시간대·작업유형별로 표시합니다. "
-            "색이 진할수록 저역률 발생이 잦은 구간을 의미하며, "
-            "특히 Maximum_Load 구간이 진하게 표시된다면 피크 부하 시 효율 저하 가능성이 있습니다."
-        )
+        if applied_df.empty or "작업유형" not in applied_df.columns:
+            st.warning(f"ℹ️ {pf_label} 데이터가 부족합니다.")
+        else:
+            # ✅ 시간대별 작업유형 비율 계산
+            ratio_df = (
+                applied_df.groupby(["시간", "작업유형"])
+                .size().reset_index(name="건수")
+            )
+            ratio_df["비율(%)"] = ratio_df.groupby("시간")["건수"].transform(lambda x: x / x.sum() * 100)
+
+            # 🎨 작업유형 색상 고정
+            color_map = {
+                "Light_Load": "#2ecc71",   # 초록
+                "Medium_Load": "#f39c12",  # 주황
+                "Maximum_Load": "#e74c3c"  # 빨강
+            }
+
+            # --------------------------------------------------
+            # 🧩 두 그래프를 한 줄(row)에 배치
+            # --------------------------------------------------
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                # 누적 막대 그래프
+                fig_ratio = px.bar(
+                    ratio_df,
+                    x="시간",
+                    y="비율(%)",
+                    color="작업유형",
+                    color_discrete_map=color_map,
+                    title=f"{pf_label} 시간대별 작업유형 비율 (누적 막대)",
+                    labels={"비율(%)": "작업유형 비율(%)"}
+                )
+                fig_ratio.update_layout(
+                    barmode="stack",
+                    template="plotly_white",
+                    height=450,
+                    xaxis=dict(dtick=1),
+                    hovermode="x unified",
+                    legend_title="작업유형"
+                )
+                st.plotly_chart(fig_ratio, use_container_width=True)
+
+            with col2:
+                # 전체 비중 도넛 차트
+                total_ratio = (
+                    applied_df["작업유형"].value_counts(normalize=True).mul(100).reset_index()
+                )
+                total_ratio.columns = ["작업유형", "비율(%)"]
+
+                fig_donut = px.pie(
+                    total_ratio,
+                    values="비율(%)",
+                    names="작업유형",
+                    title=f"{pf_label} 전체 구성비",
+                    color="작업유형",
+                    color_discrete_map=color_map,
+                    hole=0.45
+                )
+                fig_donut.update_layout(
+                    template="plotly_white",
+                    legend_title="작업유형",
+                    height=450,
+                    margin=dict(t=80, b=40, l=10, r=10)
+                )
+                st.plotly_chart(fig_donut, use_container_width=True)
+
+            # --------------------------------------------------
+            # 캡션
+            # --------------------------------------------------
+            st.caption(
+                f"💡 {pf_label} 구간에서 시간대별로 수행된 작업유형의 비율을 나타냅니다. "
+                "빨간색(Maximum_Load)은 피크 부하, 주황색(Medium_Load)은 중간 부하, "
+                "초록색(Light_Load)은 저부하를 의미합니다. "
+                "피크 부하 비율이 높은 구간은 역률 저하 가능성이 높습니다."
+            )
 
     # ==================================================
     # 3.5️⃣ 시간대별 작업유형별 전기요금 현황 (누적 막대)
