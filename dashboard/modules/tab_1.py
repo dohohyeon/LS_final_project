@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import plotly.express as px
 import pandas as pd
 import time
@@ -71,11 +71,21 @@ def _compute_time_slot_thresholds(train_df):
         thresholds[slot_label] = slot_threshold if slot_threshold is not None else fallback
 
     return thresholds, fallback
+
 def show_tab_realtime(train, base_interval_sec, playback_factor):
     
     # --- CSS 스타일 추가 (다크모드 네온 스타일) ---
     st.markdown("""
         <style>
+        /* KPI 카드 컨테이너 고정 */
+        #kpi-sticky-container {
+            position: sticky !important;
+            top: 0px !important;
+            z-index: 999 !important;
+            background-color: white !important;
+            padding: 10px 0 !important;
+        }
+        
         /* 다크모드 KPI 카드 스타일 */
         .kpi-card {
             background: #ffffff;
@@ -168,31 +178,65 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
             background: rgba(100, 116, 139, 0.1);
             border-color: rgba(100, 116, 139, 0.3);
         }
+        
+        /* Expander 헤더 배경색 변경 */
+        div[data-testid="stExpander"] details summary {
+            background-color: #0E2841 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            font-weight: 600 !important;
+        }
+        
+        div[data-testid="stExpander"] details summary:hover {
+            background-color: #1a3a5c !important;
+            color: white !important;
+        }
+        
+        /* 추가 선택자들 */
+        [data-testid="stExpander"] summary {
+            background-color: #0E2841 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            font-weight: 600 !important;
+        }
+        
+        [data-testid="stExpander"] summary:hover {
+            background-color: #1a3a5c !important;
+            color: white !important;
+        }
+        
+        [data-testid="stExpander"] > div > div > button {
+            background-color: #0E2841 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            font-weight: 600 !important;
+        }
+        
+        [data-testid="stExpander"] > div > div > button:hover {
+            background-color: #1a3a5c !important;
+            color: white !important;
+        }
+        
+        /* 화살표 아이콘도 흰색으로 */
+        [data-testid="stExpander"] svg {
+            fill: white !important;
+            color: white !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
     time_slot_thresholds, fallback_peak_threshold = _compute_time_slot_thresholds(train)
 
     # --- 1. 플레이스홀더 생성 ---
+    # KPI 컨테이너를 sticky로 만들기 위해 div로 감싸기
+    st.markdown('<div id="kpi-sticky-container">', unsafe_allow_html=True)
     kpi_ph = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
     chart_demand_ph = st.empty()
-
-    # 여백 추가 (역률 차트 선택 위치 조정)
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 여백 추가 (역률 차트 선택 위치 조정)
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("#####  역률 차트 선택")
-    pf_choice = st.radio(
-        "표시할 역률 차트 선택",
-        [COL_LAG_PF, COL_LEAD_PF], 
-        horizontal=True,
-        key="pf_chart_select",
-        format_func=lambda col_name: "지상 역률" if col_name == COL_LAG_PF else "진상 역률",
-        label_visibility="collapsed"
-    )
-    
     chart_pf_ph = st.empty()
     table_ph = st.empty()
 
@@ -201,7 +245,7 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
         with kpi_ph.container():
             cols = st.columns(6)
             
-            # KPI 1: 실시간 수요전력
+            # KPI 1: 실시간 수요전력    
             with cols[0]:
                 st.markdown(f"""
                     <div class="kpi-card">
@@ -221,7 +265,6 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
                     </div>
                 """, unsafe_allow_html=True)
             
-            # KPI 3: 실시간 지상역률
             with cols[2]:
                 st.markdown(f"""
                     <div class="kpi-card">
@@ -231,7 +274,6 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
                     </div>
                 """, unsafe_allow_html=True)
             
-            # KPI 4: 실시간 진상역률
             with cols[3]:
                 st.markdown(f"""
                     <div class="kpi-card">
@@ -240,7 +282,6 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
                         <div class="kpi-delta waiting">데이터 대기 중</div>
                     </div>
                 """, unsafe_allow_html=True)
-            
             # KPI 5: 당월 누적 사용량
             with cols[4]:
                 st.markdown(f"""
@@ -262,10 +303,10 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
                 """, unsafe_allow_html=True)
 
     # --- 3. 대시보드 업데이트 함수 ---
-    def update_dashboard(df_partial):
+    def update_dashboard(df_partial, pf_choice):
         if df_partial.empty:
             show_initial_kpi()
-            return
+            return pf_choice
 
         # --- 그래프용 데이터는 최근 10개만 사용 ---
         df_chart = df_partial.tail(10).copy()
@@ -343,27 +384,35 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
             
             # KPI 3: 실시간 지상역률
             with cols[2]:
-                st.markdown(f"""
-                    <div class="kpi-card">
+                lag_card_style = "background-color: #FFECEC;" if current_lag_pf < PF_LAG_THRESHOLD else ""
+                st.markdown(
+                    f"""
+                    <div class="kpi-card" style="{lag_card_style}">
                         <div class="kpi-label">실시간 지상역률</div>
                         <div class="kpi-value">{current_lag_pf:,.1f}<span class="kpi-unit">%</span></div>
                         <div class="kpi-delta {lag_pf_delta_class}">
                             {lag_pf_delta:+.1f}%
                         </div>
                     </div>
-                """, unsafe_allow_html=True)
+                    """,
+                    unsafe_allow_html=True,
+                )
             
             # KPI 4: 실시간 진상역률
             with cols[3]:
-                st.markdown(f"""
-                    <div class="kpi-card">
+                lead_card_style = "background-color: #FFECEC;" if current_lead_pf < PF_LEAD_THRESHOLD else ""
+                st.markdown(
+                    f"""
+                    <div class="kpi-card" style="{lead_card_style}">
                         <div class="kpi-label">실시간 진상역률</div>
                         <div class="kpi-value">{current_lead_pf:,.1f}<span class="kpi-unit">%</span></div>
                         <div class="kpi-delta {lead_pf_delta_class}">
                             {lead_pf_delta:+.1f}%
                         </div>
                     </div>
-                """, unsafe_allow_html=True)
+                    """,
+                    unsafe_allow_html=True,
+                )
             
             # KPI 5: 당월 누적 사용량
             with cols[4]:
@@ -385,89 +434,172 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
                     </div>
                 """, unsafe_allow_html=True)
 
-        # --- 수요전력(kW) 차트 업데이트 (최근 10개만) ---
-        fig1 = px.line(df_chart, x=COL_TIME, y=COL_DEMAND, title="실시간 수요전력(kW) 추이", markers=True)
-        if not df_chart.empty:
-            fig1.add_scatter(
-                x=df_chart[COL_TIME],
-                y=df_chart["_slot_threshold"],
-                mode="lines",
-                name="시간대 관리기준선",
-                line=dict(color="red", dash="dash"),
-                text=df_chart["_threshold_display"],
-                hovertemplate="%{text}<br>%{x}<br>%{y:.1f} kW<extra></extra>",
-            )
-            exceed_points = df_chart[df_chart["_exceed_flag"]]
-            if not exceed_points.empty:
-                fig1.add_scatter(
-                    x=exceed_points[COL_TIME],
-                    y=exceed_points[COL_DEMAND],
-                    mode="markers",
-                    name="목표 피크 초과",
-                    marker=dict(color="#FF4D4F", size=10, symbol="circle"),
-                    hovertemplate="목표 초과<br>%{x}<br>%{y:.1f} kW<extra></extra>",
+        # --- 수요전력(kW) 차트 업데이트 (최근 10개만) - 토글 상자로 변경 ---
+        with chart_demand_ph.container():
+            st.markdown("<br><br>", unsafe_allow_html=True)  # KPI와 차트 사이 여백
+            with st.expander("실시간 수요전력(kW) 추이", expanded=True):
+                fig1 = px.line(df_chart, x=COL_TIME, y=COL_DEMAND, title="", markers=True)
+                if not df_chart.empty:
+                    fig1.add_scatter(
+                        x=df_chart[COL_TIME],
+                        y=df_chart["_slot_threshold"],
+                        mode="lines",
+                        name="시간대 관리기준선",
+                        line=dict(color="red", dash="dash"),
+                        text=df_chart["_threshold_display"],
+                        hovertemplate="%{text}<br>%{x}<br>%{y:.1f} kW<extra></extra>",
+                    )
+                    exceed_points = df_chart[df_chart["_exceed_flag"]]
+                    if not exceed_points.empty:
+                        fig1.add_scatter(
+                            x=exceed_points[COL_TIME],
+                            y=exceed_points[COL_DEMAND],
+                            mode="markers",
+                            name="목표 피크 초과",
+                            marker=dict(color="#FF4D4F", size=10, symbol="circle"),
+                            hovertemplate="목표 초과<br>%{x}<br>%{y:.1f} kW<extra></extra>",
+                        )
+                fig1.update_layout(
+                    plot_bgcolor="#FFECEC" if current_demand > current_threshold else "white",
+                    paper_bgcolor="white",
                 )
-        fig1.update_layout(
-            plot_bgcolor="#FFECEC" if current_demand > current_threshold else "white",
-            paper_bgcolor="white",
-        )
-        fig1.update_yaxes(rangemode="tozero")
-        chart_demand_ph.plotly_chart(fig1, use_container_width=True)
+                fig1.update_yaxes(rangemode="tozero")
+                st.plotly_chart(fig1, use_container_width=True)
 
-        # --- 역률(%) 차트 업데이트 (최근 10개만) ---
-        if pf_choice == COL_LAG_PF:
-            fig_pf = px.line(df_chart, x=COL_TIME, y=COL_LAG_PF,
-                             title="실시간 지상역률(%) 추이", markers=True, color_discrete_sequence=['#ff7f0e'])
-            fig_pf.add_hline(y=PF_LAG_THRESHOLD, line_dash="dash", line_color="red", annotation_text="지상 한계 (90%)", annotation_position="bottom right")
-            y_min_val = min(40, df_chart[COL_LAG_PF].min() - 2) if not df_chart.empty else 40
-            fig_pf.update_yaxes(range=[y_min_val, 101])
-        else:
-            fig_pf = px.line(df_chart, x=COL_TIME, y=COL_LEAD_PF,
-                             title="실시간 진상역률(%) 추이", markers=True, color_discrete_sequence=['#2ca02c'])
-            fig_pf.add_hline(y=PF_LEAD_THRESHOLD, line_dash="dot", line_color="blue", annotation_text="진상 한계 (95%)", annotation_position="top right")
-            y_min_val = min(40, df_chart[COL_LEAD_PF].min() - 2) if not df_chart.empty else 40
-            fig_pf.update_yaxes(range=[y_min_val, 101])
-            
-        chart_pf_ph.plotly_chart(fig_pf, use_container_width=True)
+        # --- 역률(%) 차트 업데이트 (최근 10개만) - 토글 상자로 변경 ---
+        with chart_pf_ph.container():
+            st.markdown("<br><br>", unsafe_allow_html=True)  # 차트 간격 조정
+            expander_title = "실시간 지상역률(%) 추이" if pf_choice == COL_LAG_PF else "실시간 진상역률(%) 추이"
+            with st.expander(expander_title, expanded=True):
+                # 역률 차트 선택 라디오 버튼 (토글 안에 위치)
+                pf_choice = st.radio(
+                    "역률 차트 선택",
+                    [COL_LAG_PF, COL_LEAD_PF], 
+                    horizontal=True,
+                    key=f"pf_chart_select_{st.session_state.index}",  # 고유 키 생성
+                    format_func=lambda col_name: "지상 역률" if col_name == COL_LAG_PF else "진상 역률",
+                    index=0 if pf_choice == COL_LAG_PF else 1
+                )
+                
+                if pf_choice == COL_LAG_PF:
+                    fig_pf = px.line(df_chart, x=COL_TIME, y=COL_LAG_PF,
+                                     title="", markers=True, color_discrete_sequence=['#ff7f0e'])
+                    fig_pf.add_hline(y=PF_LAG_THRESHOLD, line_dash="dash", line_color="red", annotation_text="지상 한계 (90%)", annotation_position="bottom right")
+                    if not df_chart.empty:
+                        below_lag = df_chart[df_chart[COL_LAG_PF] < PF_LAG_THRESHOLD]
+                        if not below_lag.empty:
+                            fig_pf.add_scatter(
+                                x=below_lag[COL_TIME],
+                                y=below_lag[COL_LAG_PF],
+                                mode="markers",
+                                name="지상 한계 미달",
+                                marker=dict(color="#FF4D4F", size=10, symbol="triangle-down"),
+                                hovertemplate="지상 한계 미달<br>%{x}<br>%{y:.1f} %<extra></extra>",
+                            )
+                        lag_bg_color = "white" if below_lag.empty or (below_lag[COL_LAG_PF] >= PF_LAG_THRESHOLD).all() else "#FFECEC"
+                    else:
+                        lag_bg_color = "white"
+                    fig_pf.update_layout(
+                        plot_bgcolor=lag_bg_color,
+                        paper_bgcolor="white",
+                    )
+                    y_min_val = min(40, df_chart[COL_LAG_PF].min() - 2) if not df_chart.empty else 40
+                    fig_pf.update_yaxes(range=[y_min_val, 101])
+                else:
+                    fig_pf = px.line(df_chart, x=COL_TIME, y=COL_LEAD_PF,
+                                     title="", markers=True, color_discrete_sequence=['#2ca02c'])
+                    fig_pf.add_hline(y=PF_LEAD_THRESHOLD, line_dash="dot", line_color="blue", annotation_text="진상 한계 (95%)", annotation_position="top right")
+                    if not df_chart.empty:
+                        below_lead = df_chart[df_chart[COL_LEAD_PF] < PF_LEAD_THRESHOLD]
+                        if not below_lead.empty:
+                            fig_pf.add_scatter(
+                                x=below_lead[COL_TIME],
+                                y=below_lead[COL_LEAD_PF],
+                                mode="markers",
+                                name="진상 한계 미달",
+                                marker=dict(color="#FF4D4F", size=10, symbol="triangle-down"),
+                                hovertemplate="진상 한계 미달<br>%{x}<br>%{y:.1f} %<extra></extra>",
+                            )
+                        lead_bg_color = "white" if below_lead.empty or (below_lead[COL_LEAD_PF] >= PF_LEAD_THRESHOLD).all() else "#FFECEC"
+                    else:
+                        lead_bg_color = "white"
+                    fig_pf.update_layout(
+                        plot_bgcolor=lead_bg_color,
+                        paper_bgcolor="white",
+                    )
+                    y_min_val = min(40, df_chart[COL_LEAD_PF].min() - 2) if not df_chart.empty else 40
+                    fig_pf.update_yaxes(range=[y_min_val, 101])
 
+                st.plotly_chart(fig_pf, use_container_width=True)
+        
+        return pf_choice
+
+    # --- 데이터 테이블 업데이트 함수 (별도 분리) ---
+    def update_table(df_partial, pf_choice):
         # --- 데이터 테이블 업데이트 ---
-        cols_to_show = [col for col in [
-            COL_TIME, COL_DEMAND, COL_USAGE, 
-            COL_LAG_PF, COL_LEAD_PF, 
-            COL_COST, COL_JOB
-        ] if col in df_partial.columns]
+        pf_columns = [COL_LAG_PF] if pf_choice == COL_LAG_PF else [COL_LEAD_PF]
+        base_columns = [COL_TIME, COL_DEMAND, COL_USAGE] + pf_columns + [COL_COST, COL_JOB]
+        cols_to_show = [col for col in base_columns if col in df_partial.columns]
 
         log_limit = 50
         df_display = df_partial[cols_to_show].sort_values(COL_TIME, ascending=False).head(log_limit).copy()
 
-        if not df_display.empty and COL_DEMAND in df_display.columns and COL_TIME in df_display.columns:
-            thresholds_for_rows = df_display[COL_TIME].apply(
-                lambda ts: time_slot_thresholds.get(_assign_time_slot_label(ts), fallback_peak_threshold)
-            )
-            exceed_mask = (df_display[COL_DEMAND] > thresholds_for_rows).fillna(False)
+        if df_display.empty:
+            styled_display = df_display
+        else:
+            if COL_DEMAND in df_display.columns and COL_TIME in df_display.columns:
+                thresholds_for_rows = df_display[COL_TIME].apply(
+                    lambda ts: time_slot_thresholds.get(_assign_time_slot_label(ts), fallback_peak_threshold)
+                )
+                exceed_mask = (df_display[COL_DEMAND] > thresholds_for_rows).fillna(False)
+            else:
+                exceed_mask = pd.Series(False, index=df_display.index)
+
+            pf_column = pf_columns[0] if pf_columns else None
+            pf_below_mask = pd.Series(False, index=df_display.index)
+            if pf_column and pf_column in df_display.columns:
+                pf_threshold = PF_LAG_THRESHOLD if pf_choice == COL_LAG_PF else PF_LEAD_THRESHOLD
+                pf_below_mask = (df_display[pf_column] < pf_threshold).fillna(False)
 
             def highlight_rows(row):
-                color = "background-color: #DDC987" if exceed_mask.loc[row.name] else ""
+                demand_exceed = exceed_mask.loc[row.name] if row.name in exceed_mask.index else False
+                pf_below = pf_below_mask.loc[row.name] if row.name in pf_below_mask.index else False
+
+                if demand_exceed:
+                    color = "background-color: #DDC987"
+                elif pf_below:
+                    color = "background-color: #FCDEDC"
+                else:
+                    color = ""
                 return [color] * len(row)
 
-            df_display = df_display.style.apply(highlight_rows, axis=1)
+            styled_display = df_display.style.apply(highlight_rows, axis=1)
 
+        column_config = {}
+        if COL_TIME in df_display.columns:
+            column_config[COL_TIME] = st.column_config.DatetimeColumn("측정일시", format="MM-DD HH:mm:ss")
+        if COL_DEMAND in df_display.columns:
+            column_config[COL_DEMAND] = st.column_config.NumberColumn("수요전력(kW)", format="%.2f")
+        if COL_USAGE in df_display.columns:
+            column_config[COL_USAGE] = st.column_config.NumberColumn("사용량(kWh)", format="%.2f")
+        if pf_choice == COL_LAG_PF and COL_LAG_PF in df_display.columns:
+            column_config[COL_LAG_PF] = st.column_config.NumberColumn("지상역률(%)", format="%.1f %%")
+        if pf_choice == COL_LEAD_PF and COL_LEAD_PF in df_display.columns:
+            column_config[COL_LEAD_PF] = st.column_config.NumberColumn("진상역률(%)", format="%.1f %%")
+        if COL_COST in df_display.columns:
+            column_config[COL_COST] = st.column_config.NumberColumn("전기요금(원)", format="%d 원")
         table_ph.dataframe(
-            df_display,
+            styled_display,
             use_container_width=True,
             hide_index=True,
-            column_config={
-                COL_TIME: st.column_config.DatetimeColumn("측정일시", format="MM-DD HH:mm:ss"),
-                COL_DEMAND: st.column_config.NumberColumn("수요전력(kW)", format="%.2f"),
-                COL_USAGE: st.column_config.NumberColumn("사용량(kWh)", format="%.2f"),
-                COL_LAG_PF: st.column_config.NumberColumn("지상역률(%)", format="%.1f %%"),
-                COL_LEAD_PF: st.column_config.NumberColumn("진상역률(%)", format="%.1f %%"),
-                COL_COST: st.column_config.NumberColumn("전기요금(원)", format="%d 원"),
-            },
+            column_config=column_config,
         )
 
     # --- 4. 초기 상태 표시 ---
     show_initial_kpi()
+    
+    # 초기 pf_choice 설정
+    current_pf_choice = COL_LAG_PF
 
     # --- 5. 실시간 업데이트 루프 ---
     while st.session_state.running:
@@ -478,7 +610,8 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
             )
             st.session_state.index += 1
 
-            update_dashboard(st.session_state.stream_df)
+            current_pf_choice = update_dashboard(st.session_state.stream_df, current_pf_choice)
+            update_table(st.session_state.stream_df, current_pf_choice)
 
             effective_factor = max(playback_factor, 0.01)
             sleep_duration = max(0.01, base_interval_sec / effective_factor)
@@ -499,4 +632,5 @@ def show_tab_realtime(train, base_interval_sec, playback_factor):
             st.success("✅ 모든 데이터 스트리밍 완료.")
             break
 
-    update_dashboard(st.session_state.stream_df)
+    current_pf_choice = update_dashboard(st.session_state.stream_df, current_pf_choice)
+    update_table(st.session_state.stream_df, current_pf_choice)
