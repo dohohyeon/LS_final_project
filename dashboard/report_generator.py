@@ -1,22 +1,59 @@
 # ---------------------------------------------------
-# 전력 데이터 통합 분석 보고서 생성 (tab_2 동기화 완성 버전)
+# 전력 데이터 통합 분석 보고서 생성 (폰트 통일 + 자동 삭제 + 기존 기능 100%)
 # ---------------------------------------------------
 
-import os, io
+import os, io, threading, time
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls
+from docx.oxml.ns import nsdecls, qn
+
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.io as pio
+
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+from matplotlib import rcParams
+
+# =========================
+# ✅ 환경/폰트 설정 (Streamlit Cloud용)
+# =========================
+# Streamlit Cloud에서 fonts-nanum 설치 시 시스템 경로
+# (packages.txt에 fonts-nanum 추가되어 있어야 함)
+os.environ.setdefault("FONTCONFIG_PATH", "/usr/share/fonts/truetype/nanum")
+
+NANUM_PATH = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+# ---------------------------------------------------
+# 전역 폰트 설정 (산세리프 계열 통일)
+# ---------------------------------------------------
+FONT_NAME = "Noto Sans KR, Malgun Gothic, Apple SD Gothic Neo, sans-serif"
+
+# Matplotlib
+from matplotlib import rcParams
+rcParams["font.family"] = ["Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", "sans-serif"]
+rcParams["axes.unicode_minus"] = False
+
+# Plotly
+import plotly.io as pio
+pio.templates.default = "plotly_white"
+pio.defaults.font = dict(family=FONT_NAME, size=12, color="#222")
+pio.templates["plotly_white"].layout.font.family = FONT_NAME
+
+# Word
+from docx.oxml.ns import qn
+WORD_FONT = "맑은 고딕"  # Word에서는 한국어 이름 그대로 지정 (Windows 호환성)
 
 
-# ============ 공통 표 스타일 ============
+# =========================
+# 공통 표 스타일
+# =========================
 def format_table_uniform(table):
     table.style = "Table Grid"
     for ridx, row in enumerate(table.rows):
@@ -27,15 +64,40 @@ def format_table_uniform(table):
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for r in p.runs:
-                    r.font.name = "NanumGothic"
+                    r.font.name = WORD_FONT
+                    try:
+                        r._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+                    except Exception:
+                        pass
                     r.font.size = Pt(10)
                     r.font.color.rgb = RGBColor(0, 0, 0)
                     if ridx == 0:
                         r.font.bold = True
 
 
+# =========================
+# Plotly 폰트 강제 적용 (Kaleido 저장 직전)
+# =========================
+def _apply_korean_font(fig, family=FONT_NAME):
+    fig.layout.font.family = family
+    fig.update_layout(font=dict(family=family))
+    for ax in [a for a in fig.layout if str(a).startswith("xaxis") or str(a).startswith("yaxis")]:
+        axis = fig.layout[ax]
+        if hasattr(axis, "title") and axis.title:
+            axis.title.font = dict(family=family, size=12)
+        if hasattr(axis, "tickfont") and axis.tickfont:
+            axis.tickfont.family = family
+    if hasattr(fig.layout, "legend") and fig.layout.legend:
+        fig.layout.legend.font = dict(family=family, size=11)
+    if getattr(fig.layout, "annotations", None):
+        for a in fig.layout.annotations:
+            a.font = dict(family=family, size=12)
+
+
+# =========================
 # ============ 보고서 생성 함수 ============
-def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_report.docx"):
+# =========================
+def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report.docx"):
     df = df.copy()
     filtered_df = filtered_df.copy()
 
@@ -52,9 +114,17 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
         if col in filtered_df.columns:
             filtered_df[col] = pd.to_numeric(filtered_df[col], errors="coerce")
 
+    # 출력 폴더 보장
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # 문서 생성 + 기본 폰트
     doc = Document()
-    doc.styles["Normal"].font.name = "NanumGothic"
+    style = doc.styles["Normal"]
+    style.font.name = WORD_FONT
+    try:
+        style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+    except Exception:
+        pass
 
     # 페이지 테두리
     sectPr = doc.sections[0]._sectPr
@@ -67,11 +137,17 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
         </w:pgBorders>
     '''))
 
-    # 0) 제목
+    # 0) 제목부
     p = doc.add_paragraph("전력 데이터 통합 분석 보고서")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.runs[0].font.size = Pt(18)
-    p.runs[0].bold = True
+    p_run = p.runs[0]
+    p_run.font.size = Pt(18)
+    p_run.bold = True
+    p_run.font.name = WORD_FONT
+    try:
+        p_run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+    except Exception:
+        pass
 
     sd, ed = filtered_df["측정일시"].min(), filtered_df["측정일시"].max()
     doc.add_paragraph(f"분석 기간: {sd:%Y-%m-%d} ~ {ed:%Y-%m-%d}").alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -116,7 +192,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     doc.add_paragraph()
 
-    # 2️⃣ 요일·시간대별 패턴
+    # 2️⃣ 요일·시간대별 전력 사용 패턴
     doc.add_heading("2. 요일·시간대별 전력 사용 패턴", level=1)
     weekday_map = {"Monday": "월요일", "Tuesday": "화요일", "Wednesday": "수요일",
                    "Thursday": "목요일", "Friday": "금요일", "Saturday": "토요일", "Sunday": "일요일"}
@@ -124,7 +200,8 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
 
     wd = (filtered_df.groupby("요일")["전력사용량(kWh)"].mean()
           .reindex(["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]).reset_index())
-    hr = (filtered_df.groupby("시간")["전력사용량(kWh)"].mean().reset_index().sort_values("시간"))
+    hr = (filtered_df.groupby("시간")["전력사용량(kWh)"].mean()
+          .reset_index().sort_values("시간"))
 
     fig_pattern = make_subplots(rows=2, cols=1,
                                 subplot_titles=("요일별 평균 전력사용량", "시간대별 평균 전력사용량"),
@@ -137,6 +214,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     fig_pattern.update_layout(showlegend=False, hovermode="x unified", template="plotly_white",
                               height=700, plot_bgcolor="#ffffff", paper_bgcolor="#ffffff")
+    _apply_korean_font(fig_pattern)
     buf = io.BytesIO()
     fig_pattern.write_image(buf, format="png")
     buf.seek(0)
@@ -149,10 +227,10 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     doc.add_paragraph()
 
-    # 3️⃣ 피크 수요 및 역률
+    # 3️⃣ 피크 수요 및 역률 분석
     doc.add_heading("3. 피크 수요 및 역률 분석", level=1)
     peak_kw = filtered_df["수요전력(kW)"].max() if "수요전력(kW)" in filtered_df else np.nan
-    if "수요전력(kW)" in filtered_df and not np.isnan(peak_kw):
+    if "수요전력(kW)" in filtered_df.columns and not np.isnan(peak_kw):
         pidx = filtered_df["수요전력(kW)"].idxmax()
         peak_time_str = filtered_df.loc[pidx, "측정일시"].strftime("%Y-%m-%d %H:%M")
     else:
@@ -191,6 +269,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
                                template="plotly_white", hovermode="x unified",
                                showlegend=False, plot_bgcolor="#fff", paper_bgcolor="#fff")
         fig_peak.update_xaxes(type="date", tickformat="%m-%d %H:%M", tickangle=45)
+        _apply_korean_font(fig_peak)
         buf = io.BytesIO()
         fig_peak.write_image(buf, format="png")
         buf.seek(0)
@@ -202,7 +281,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     doc.add_paragraph()
 
-    # 4️⃣ 작업유형별 전기요금
+    # 4️⃣ 시간대별 작업유형별 전기요금 현황
     doc.add_heading("4. 시간대별 작업유형별 전기요금 현황", level=1)
     if "작업유형" in filtered_df.columns:
         g = (filtered_df.groupby(["시간", "작업유형"])["전기요금(원)"].sum().reset_index())
@@ -214,6 +293,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
         fig_cost.update_layout(barmode="stack", template="plotly_white", hovermode="x unified",
                                plot_bgcolor="#fff", paper_bgcolor="#fff",
                                legend_title="작업유형", xaxis=dict(dtick=1), height=500)
+        _apply_korean_font(fig_cost)
         buf = io.BytesIO()
         fig_cost.write_image(buf, format="png")
         buf.seek(0)
@@ -226,7 +306,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     doc.add_paragraph()
 
-    # 5️⃣ 시계열 추이
+    # 5️⃣ 전력사용량 시계열 추이
     doc.add_heading("5. 전력사용량 시계열 추이", level=1)
     ts = (filtered_df[["측정일시", "전력사용량(kWh)"]]
           .dropna().drop_duplicates(subset=["측정일시"]).sort_values("측정일시"))
@@ -238,6 +318,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
                          hovermode="x unified", plot_bgcolor="#fff", paper_bgcolor="#fff")
     fig_ts.update_xaxes(type="date", tickformat="%m-%d", dtick=86400000*3,
                         tickangle=45, showgrid=True, gridcolor="#eee")
+    _apply_korean_font(fig_ts)
     buf = io.BytesIO()
     fig_ts.write_image(buf, format="png")
     buf.seek(0)
@@ -249,7 +330,7 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
     )
     doc.add_paragraph()
 
-    # 6️⃣ 개선사항
+    # 6️⃣ 개선사항 및 제안
     doc.add_heading("6. 개선사항 및 제안", level=1)
     t2 = doc.add_table(rows=1, cols=2)
     t2.rows[0].cells[0].text, t2.rows[0].cells[1].text = "개선 항목", "내용"
@@ -268,5 +349,46 @@ def create_tab2_analysis_report(df, filtered_df, output_path="./reports/tab2_rep
         "지속적인 모니터링 체계를 구축하면 월별 변화 추이를 정량적으로 평가할 수 있습니다."
     )
 
+    # === 문서 전체 폰트 통일 (헤딩/표/본문 전부) ===
+    for style in doc.styles:
+        try:
+            if hasattr(style, "font"):
+                style.font.name = WORD_FONT
+                style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+        except Exception:
+            continue
+
+    for paragraph in doc.paragraphs:
+        for run in paragraph.runs:
+            run.font.name = WORD_FONT
+            try:
+                run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+            except Exception:
+                pass
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.name = WORD_FONT
+                        try:
+                            run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+                        except Exception:
+                            pass
+
+    # 저장
     doc.save(output_path)
+
+    # 자동 삭제 (다운로드 여유 시간 확보용 10초)
+    def delayed_delete(path):
+        time.sleep(10)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+
+    threading.Thread(target=delayed_delete, args=(output_path,), daemon=True).start()
+
     return output_path

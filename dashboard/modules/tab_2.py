@@ -227,10 +227,10 @@ def show_tab_analysis(train):
 
     # 보고서 생성 버튼
     if st.button("보고서 생성", key="report_generate_btn", use_container_width=True):
-        from report_generator import create_tab2_analysis_report
+        from report_generator import generate_analysis_report
         with st.spinner("보고서를 생성 중입니다..."):
             file_name = f"./reports/electricity_report_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
-            report_path = create_tab2_analysis_report(df, filtered_df, output_path=file_name)
+            report_path = generate_analysis_report(df, filtered_df, output_path=file_name)
         st.session_state["report_path_tab2"] = report_path
         st.success("보고서 생성이 완료되었습니다.")
 
