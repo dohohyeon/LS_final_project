@@ -390,6 +390,127 @@ def show_tab_analysis(train):
         """, height=240)
 
     # ==================================================
+    # ⚙️ 역률 시계열 그래프 (지상 / 진상 + 할인/할증 구간 표시)
+    # ==================================================
+    if COL_LAG_PF in filtered_df.columns or COL_LEAD_PF in filtered_df.columns:
+        import plotly.graph_objects as go
+
+        pf_df = filtered_df.copy().sort_values(COL_TIME)
+
+        fig_pf = go.Figure()
+
+        # ✅ 지상역률 (Lagging PF)
+        if COL_LAG_PF in pf_df.columns:
+            fig_pf.add_trace(go.Scatter(
+                x=pf_df[COL_TIME],
+                y=pf_df[COL_LAG_PF],
+                mode="lines",
+                name="지상역률(%)",
+                line=dict(color="#1f77b4", width=2)
+            ))
+
+        # ✅ 진상역률 (Leading PF)
+        if COL_LEAD_PF in pf_df.columns:
+            fig_pf.add_trace(go.Scatter(
+                x=pf_df[COL_TIME],
+                y=pf_df[COL_LEAD_PF],
+                mode="lines",
+                name="진상역률(%)",
+                line=dict(color="#ff7f0e", width=2)
+            ))
+
+        # 🎯 요금 영향 구간 (배경 표시)
+        fig_pf.add_hrect(
+            y0=95, y1=100,
+            fillcolor="rgba(40,167,69,0.15)",  # 초록색 반투명 (할인 구간)
+            layer="below", line_width=0,
+            annotation_text="감면 구간 (95% 이상)", annotation_position="top left"
+        )
+        fig_pf.add_hrect(
+            y0=0, y1=90,
+            fillcolor="rgba(220,53,69,0.12)",  # 빨간색 반투명 (할증 구간)
+            layer="below", line_width=0,
+            annotation_text="할증 구간 (90% 미만)", annotation_position="bottom left"
+        )
+
+        # 🎯 기준선 (95%, 90%)
+        fig_pf.add_hline(y=95, line_dash="dash", line_color="#28a745",
+                            annotation_text="95%", annotation_position="top right")
+        fig_pf.add_hline(y=90, line_dash="dash", line_color="#dc3545",
+                            annotation_text="90%", annotation_position="bottom right")
+
+        # 🎨 레이아웃
+        fig_pf.update_layout(
+            title="역률 변화 추이 (지상 / 진상)",
+            xaxis_title="시간",
+            yaxis_title="역률(%)",
+            hovermode="x unified",
+            template="plotly_white",
+            legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
+            height=420,
+            plot_bgcolor="#fff",
+            paper_bgcolor="#fff",
+            margin=dict(t=80, b=60)
+        )
+
+        st.plotly_chart(fig_pf, use_container_width=True)
+        st.caption(
+            "💡 역률이 95% 이상이면 전기요금 감면, "
+            "90% 미만이면 할증이 적용됩니다. "
+            "그래프의 초록색 영역은 감면, 빨간색 영역은 할증 구간을 나타냅니다."
+        )
+
+        # ==================================================
+        # 📊 지상 / 진상 역률 선택형 히트맵 (저역률 비율)
+        # ==================================================
+        st.markdown("#### 시간대·작업유형별 저역률(90% 미만) 발생 히트맵")
+
+        pf_select = st.selectbox("역률 유형 선택", ["지상역률", "진상역률"], key="pf_heat_select")
+        pf_col = COL_LAG_PF if pf_select == "지상역률" else COL_LEAD_PF
+
+        # 역률 기준으로 저역률(90% 미만) 구간 계산
+        pf_heat_df = pf_df.copy()
+        pf_heat_df["저역률"] = (pf_heat_df[pf_col] < 90).astype(int)
+
+        # 시간대×작업유형별 평균 저역률 비율 계산
+        heat_agg = (
+            pf_heat_df.groupby(["작업유형", "시간"])["저역률"]
+            .mean()
+            .reset_index()
+        )
+        heat_agg["저역률(%)"] = heat_agg["저역률"] * 100
+
+        pivot_data = heat_agg.pivot(index="작업유형", columns="시간", values="저역률(%)")
+
+        fig_heat = px.imshow(
+            pivot_data,
+            color_continuous_scale="Reds",
+            aspect="auto",
+            labels=dict(color="저역률 발생 비율(%)"),
+            title=f"{pf_select} 기준 시간대·작업유형별 저역률(90% 미만) 발생 비율"
+        )
+
+        fig_heat.update_layout(
+            template="plotly_white",
+            coloraxis_colorbar=dict(
+                title="저역률 비율(%)",
+                ticksuffix="%",
+                len=0.75
+            ),
+            height=500,
+            margin=dict(t=80, b=40)
+        )
+
+        st.plotly_chart(fig_heat, use_container_width=True)
+
+        st.caption(
+            f"💡 선택된 {pf_select}에서 90% 미만으로 떨어진 비율을 "
+            "시간대·작업유형별로 표시합니다. "
+            "색이 진할수록 저역률 발생이 잦은 구간을 의미하며, "
+            "특히 Maximum_Load 구간이 진하게 표시된다면 피크 부하 시 효율 저하 가능성이 있습니다."
+        )
+
+    # ==================================================
     # 3.5️⃣ 시간대별 작업유형별 전기요금 현황 (누적 막대)
     # ==================================================
     st.markdown("### 💰 시간대별 작업유형별 전기요금 현황")

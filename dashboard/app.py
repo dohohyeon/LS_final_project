@@ -9,7 +9,7 @@ from modules.tab_0 import show_tab_home
 from modules.tab_1 import show_tab_realtime
 from modules.tab_2 import show_tab_analysis
 from modules.tab_3 import show_tab_appendix
-from shared import load_train
+from shared import load_train, load_test
 
 # -----------------------------
 # 재생 속도 설정
@@ -404,6 +404,12 @@ else:
 train = load_train()
 if train.empty:
     st.stop()
+# -----------------------------
+# 데이터 로드
+# -----------------------------
+test = load_test()
+if test.empty:
+    st.stop()
 
 # -----------------------------
 # ✅ 사이드바 (selectbox 드롭다운)
@@ -421,7 +427,7 @@ else:
 # 세션 상태 초기화
 st.session_state.setdefault("running", False)
 st.session_state.setdefault("index", 0)
-st.session_state.setdefault("stream_df", train.iloc[0:0].copy())
+st.session_state.setdefault("stream_df", test.iloc[0:0].copy())
 st.session_state.setdefault("playback_speed", 1.0)
 
 st.sidebar.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
@@ -461,7 +467,7 @@ else:
 # 초기화 버튼 (전체 너비)
 if st.sidebar.button("초기화", use_container_width=True, key="reset_btn", type="secondary"):
     st.session_state.index = 0
-    st.session_state.stream_df = train.iloc[0:0].copy()
+    st.session_state.stream_df = test.iloc[0:0].copy()
     st.session_state.running = False
     st.rerun()
 
@@ -483,7 +489,7 @@ with tab_pred:
 
 with tab_rt:
     # ✅ 사이드바 변수 전달
-    show_tab_realtime(train, speed, current_speed_factor)
+    show_tab_realtime(test, speed, current_speed_factor)
 
 with tab_viz:
     show_tab_analysis(train)

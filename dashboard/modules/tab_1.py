@@ -39,17 +39,17 @@ def _calc_iqr_threshold(series):
     q3 = cleaned.quantile(0.75)
     return float(q3 + 1.5 * (q3 - q1))
 
-def _compute_time_slot_thresholds(train_df):
+def _compute_time_slot_thresholds(test_df):
     thresholds = {label: DEFAULT_PEAK_DEMAND_THRESHOLD for label, _, _, _ in TIME_SLOT_DEFINITIONS}
     fallback = DEFAULT_PEAK_DEMAND_THRESHOLD
 
-    if train_df is None or len(train_df) == 0:
+    if test_df is None or len(test_df) == 0:
         return thresholds, fallback
 
-    if COL_TIME not in train_df.columns or COL_DEMAND not in train_df.columns:
+    if COL_TIME not in test_df.columns or COL_DEMAND not in test_df.columns:
         return thresholds, fallback
 
-    df = train_df[[COL_TIME, COL_DEMAND]].dropna()
+    df = test_df[[COL_TIME, COL_DEMAND]].dropna()
     if df.empty:
         return thresholds, fallback
 
