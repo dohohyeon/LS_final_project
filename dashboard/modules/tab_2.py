@@ -1,6 +1,6 @@
 # tabs/tab_2.py
 # ---------------------------------------------------
-# 📊 전력 데이터 통합 분석 (완성형)
+#  전력 데이터 통합 분석 (완성형)
 # - 주요지표 카드 (상승🔴 / 하락🟢 색상 일관)
 # - 날짜/월별 선택 및 전월 비교 (연도 롤오버 포함)
 # - 요일·시간대별 평균 전력사용 패턴
@@ -141,7 +141,7 @@ def show_tab_analysis(train):
     # ==================================================
     # 1️⃣ 주요지표 카드
     # ==================================================
-    st.markdown("### 📋 주요 지표")
+    st.markdown("### 주요 지표")
 
     filtered_df = None
 
@@ -190,7 +190,12 @@ def show_tab_analysis(train):
         prev_start = prev_start.replace(day=min(prev_start.days_in_month, curr_start.day))
         prev_end   = prev_end.replace(day=min(prev_end.days_in_month, curr_end.day))
 
+<<<<<<< Updated upstream
         prev_df = df[(df[COL_TIME].dt.date >= prev_start.date()) & (df[COL_TIME].dt.date <= prev_end.date())]
+=======
+        render_metric_cards(period_df, prev_df, f"📆 {start_date} ~ {end_date} 기간 주요 지표")
+        st.caption(f" 비교 구간: 전월 동일 기간 {prev_start} ~ {prev_end}")
+>>>>>>> Stashed changes
 
         # ==================================================
         # ✅ 카드 렌더링 및 캡션 처리
@@ -281,7 +286,7 @@ def show_tab_analysis(train):
     # ==================================================
     # 2️⃣ 요일·시간대별 평균 전력 사용량
     # ==================================================
-    st.markdown("### 📊 요일·시간대별 전력 사용 패턴")
+    st.markdown("### 요일·시간대별 전력 사용 패턴")
     if filtered_df is None or filtered_df.empty:
         st.info("⚠️ 선택된 기간의 데이터가 없습니다.")
     else:
@@ -340,7 +345,7 @@ def show_tab_analysis(train):
     # ==================================================
     # 3️⃣ 피크 수요 및 역률 분석
     # ==================================================
-    st.markdown("### ⚡ 피크 수요 및 역률 분석")
+    st.markdown("### 피크 수요 및 역률 분석")
 
     if filtered_df is None or filtered_df.empty:
         st.info("⚠️ 선택된 기간의 데이터가 없습니다.")
@@ -592,7 +597,7 @@ def show_tab_analysis(train):
     # ==================================================
     # 3.5️⃣ 시간대별 작업유형별 전기요금 현황 (누적 막대)
     # ==================================================
-    st.markdown("### 💰 시간대별 작업유형별 전기요금 현황")
+    st.markdown("### 시간대별 작업유형별 전기요금 현황")
 
     if filtered_df is None or filtered_df.empty:
         st.info("⚠️ 선택된 기간의 데이터가 없습니다.")
@@ -629,7 +634,7 @@ def show_tab_analysis(train):
     # ==================================================
     # 4️⃣ 시계열 분석 (Range Slider)
     # ==================================================
-    st.markdown("### 📈 시계열 분석")
+    st.markdown("### 시계열 분석")
 
     metric_options = {
         "전력사용량(kWh)": COL_USAGE,
@@ -638,7 +643,7 @@ def show_tab_analysis(train):
         "진상역률(%)": COL_LEAD_PF,
         "전기요금(원)": COL_COST
     }
-    selected_label = st.selectbox("📊 표시할 지표 선택", list(metric_options.keys()))
+    selected_label = st.selectbox("표시할 지표 선택", list(metric_options.keys()))
     selected_metric = metric_options[selected_label]
 
     ts_df = df.copy()
@@ -647,7 +652,7 @@ def show_tab_analysis(train):
     ts_agg = ts_df.groupby(COL_TIME)[selected_metric].mean().reset_index()
 
     fig_ts = px.line(ts_agg, x=COL_TIME, y=selected_metric,
-                     title=f"📈 {selected_label} 시계열 추이")
+                     title=f"{selected_label} 시계열 추이")
     fig_ts.update_layout(
         xaxis=dict(
             rangeselector=dict(

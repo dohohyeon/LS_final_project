@@ -16,6 +16,10 @@ COL_JOB = "작업유형"
 COL_DEMAND = "수요전력(kW)"
 COL_LAG_PF = "지상역률(%)"
 COL_LEAD_PF = "진상역률(%)"
+# shared.py에 추가
+COL_LAG_VAR = "지상무효전력량(kVarh)"
+COL_LEAD_VAR = "진상무효전력량(kVarh)"
+COL_CARBON = "탄소배출량(tCO2)"
 
 # =========================
 # 데이터 로드 및 전처리

@@ -113,11 +113,16 @@ st.markdown("""
         fill: #ffffff !important;
     }
     
+/* Expander 화살표 아이콘 색상 */
+[data-testid="stSidebar"] .streamlit-expanderHeader svg {
+    fill: #ffffff !important;
+}
+
     /* 시작 버튼 (secondary) - 초록색 + 흰색 글자 */
-    [data-testid="stSidebar"] button[kind="secondary"],
-    [data-testid="stSidebar"] .stButton button[kind="secondary"],
-    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"] {
-        background: #2f7d43 !important;
+    [data-testid="stSidebar"] button[kind="secondary"]:not([key="reset_btn_expander"]),
+    [data-testid="stSidebar"] .stButton button[kind="secondary"]:not([key="reset_btn_expander"]),
+    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"]:not([key="reset_btn_expander"]) {
+        background: #0F3D16 !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
         border-radius: 8px !important;
@@ -127,9 +132,9 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
     }
 
-    [data-testid="stSidebar"] button[kind="secondary"]:hover,
-    [data-testid="stSidebar"] .stButton button[kind="secondary"]:hover,
-    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"]:hover {
+    [data-testid="stSidebar"] button[kind="secondary"]:not([key="reset_btn_expander"]):hover,
+    [data-testid="stSidebar"] .stButton button[kind="secondary"]:not([key="reset_btn_expander"]):hover,
+    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"]:not([key="reset_btn_expander"]):hover {
         background: #218838 !important;
         color: #ffffff !important;
         transform: translateY(-2px) !important;
@@ -159,31 +164,37 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* 검색 버튼과 초기화 버튼 색상 변경 */
-    [data-testid="stSidebar"] button[key="sidebar_search_button"],
-    [data-testid="stSidebar"] button[key="reset_btn_expander"] {
-        background: #b4b1b0 !important;
+    /* 초기화 버튼 색상 변경 - 회색 */
+    [data-testid="stSidebar"] button[kind="secondary"][key="reset_btn_expander"],
+    [data-testid="stSidebar"] .stButton button[kind="secondary"][key="reset_btn_expander"],
+    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"][key="reset_btn_expander"],
+    button[kind="secondary"][key="reset_btn_expander"] {
+        background: #808080 !important;
+        background-color: #808080 !important;
         color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 10px 16px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
     }
 
-    /* 검색/초기화 버튼 호버 효과 */
-    [data-testid="stSidebar"] button[key="sidebar_search_button"]:hover,
-    [data-testid="stSidebar"] button[key="reset_btn_expander"]:hover {
-        background: #9d9a99 !important; /* 호버 시 약간 더 어두운 색 */
+    [data-testid="stSidebar"] button[kind="secondary"][key="reset_btn_expander"]:hover,
+    [data-testid="stSidebar"] .stButton button[kind="secondary"][key="reset_btn_expander"]:hover,
+    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] button[kind="secondary"][key="reset_btn_expander"]:hover,
+    button[kind="secondary"][key="reset_btn_expander"]:hover {
+        background: #696969 !important;
+        background-color: #696969 !important;
         color: #ffffff !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
     }
-
-    /* 사이드바 검색 입력창 텍스트 색상 */
-    [data-testid="stSidebar"] .stTextInput input {
-        color: #000000 !important; /* 검정색으로 변경 */
-    }
-
-    /* 버튼 내부 텍스트도 강제로 흰색 */
-    [data-testid="stSidebar"] button[kind="secondary"] p,
-    [data-testid="stSidebar"] button[kind="secondary"] span,
-    [data-testid="stSidebar"] button[kind="secondary"] div,
+            
+    /* 버튼 내부 텍스트도 강제로 흰색 (초기화 버튼용) */
+    [data-testid="stSidebar"] button[kind="secondary"][key="reset_btn_expander"] p,
+    [data-testid="stSidebar"] button[kind="secondary"][key="reset_btn_expander"] span,
+    [data-testid="stSidebar"] button[kind="secondary"][key="reset_btn_expander"] div,
     [data-testid="stSidebar"] button[kind="primary"] p,
     [data-testid="stSidebar"] button[kind="primary"] span,
     [data-testid="stSidebar"] button[kind="primary"] div {
@@ -195,7 +206,7 @@ st.markdown("""
         display: flex;
         justify-content: center;
         gap: 20px;
-        margin-top: -80px !important;
+        margin-top: -70px !important;
         position: relative;
         z-index: 10;
     }
@@ -247,21 +258,18 @@ st.markdown("""
         margin-top: -20px;
     }
     
-    /* 검색창 스타일 */
-    .search-container {
+    /* 검색창 컨테이너 스타일 */
+    .header-search-container {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        width: 100%;
-        max-width: 260px;
-        margin-left: auto;
+        gap: 8px;
+        margin-bottom: 20px;
     }
     
     /* 검색 입력창 - 미니멀 플랫 스타일 */
     .stTextInput > div > div > input {
         border-radius: 8px !important;
-        padding: 14px 20px !important;
+        padding: 10px 16px !important;
         border: 2px solid #020202 !important;
         font-size: 14px !important;
         width: 100% !important;
@@ -279,42 +287,38 @@ st.markdown("""
         box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1) !important;
     }
 
-    /* 검색 버튼 스타일 - 강력한 선택자 */
+    /* 검색 버튼 스타일 - 노란색 */
     button[kind="secondary"][key="header_search_button"] {
-        width: 100% !important;
-        height: 44px !important;
+        min-width: 70px !important;
+        max-width: 70px !important;
+        height: 42px !important;
         border-radius: 8px !important;
         border: 2px solid #020202 !important;
-        background-color: #0A1F32 !important;
-        color: #ffffff !important;
+        background-color: #FFD700 !important;
+        background: #FFD700 !important;
+        color: #000000 !important;
         font-weight: 600 !important;
-        font-size: 14px !important;
+        font-size: 3px !important;
         transition: all 0.2s ease !important;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        padding: 8px 12px !important;
+        white-space: nowrap !important;
     }
 
     button[kind="secondary"][key="header_search_button"]:hover {
-        background-color: #143d60 !important;
+        background-color: #FFC700 !important;
+        background: #FFC700 !important;
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
     }
 
-    /* 추가 선택자 */
-    div[data-testid="column"]:has(button[key="header_search_button"]) button {
-        width: 100% !important;
-        height: 44px !important;
-        border-radius: 8px !important;
-        border: 2px solid #020202 !important;
-        background-color: #0A1F32 !important;
-        background: #0A1F32 !important;
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-    }
-
-    div[data-testid="column"]:has(button[key="header_search_button"]) button:hover {
-        background-color: #143d60 !important;
-        background: #143d60 !important;
+    /* 검색 버튼 텍스트 색상 및 크기 */
+    button[kind="secondary"][key="header_search_button"] p,
+    button[kind="secondary"][key="header_search_button"] span,
+    button[kind="secondary"][key="header_search_button"] div {
+        color: #000000 !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
     }
 
     mark.search-hit {
@@ -372,42 +376,11 @@ st.markdown("""
         width: 20px !important;
         height: 20px !important;
     }
-    /* =========================
-    📊 Tab2 전용 보고서 버튼 스타일
-    ========================= */
-    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"] {
-        width: 100% !important;
-        background-color: #007BFF !important;
-        color: #FFFFFF !important;
-        font-weight: 600 !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 0 !important;
-        transition: background 0.2s ease !important;
-    }
-    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"]:hover {
-        background-color: #0056b3 !important;
-    }
-
-    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"] {
-        width: 100% !important;
-        background-color: #28A745 !important;
-        color: #FFFFFF !important;
-        font-weight: 600 !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 0 !important;
-        margin-top: 8px !important;
-        transition: background 0.2s ease !important;
-    }
-    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"]:hover {
-        background-color: #218838 !important;
-    }
     </style>
 """, unsafe_allow_html=True) 
 
 # -----------------------------
-# ✅ 로고 및 검색창 표시
+# ✅ 로고 표시
 # -----------------------------
 LOGO_DIR = Path(__file__).parent / "assets" / "banner_image" / "logo_image"
 
@@ -424,6 +397,27 @@ else:
     st.warning(f"⚠️ 로고 이미지를 찾을 수 없습니다: {LOGO_DIR}")
     st.info("dashboard/assets/banner_image/logo_image/ 경로에 로고 이미지를 배치해 주세요.")
 
+# -----------------------------
+# ✅ 상단 오른쪽 검색창 (가로 배치)
+# -----------------------------
+col_empty, col_search = st.columns([3.5, 1.3])
+with col_search:
+    st.markdown('<div class="header-search-container">', unsafe_allow_html=True)
+    col_input, col_button = st.columns([3, 1])
+    with col_input:
+        search_query_header = st.text_input(
+            "검색", 
+            value=st.session_state.get("search_query", ""), 
+            placeholder="키워드를 입력하세요...", 
+            label_visibility="collapsed", 
+            key="header_search_input"
+        )
+    with col_button:
+        if st.button("검색", key="header_search_button", use_container_width=True, type="secondary"):
+            st.session_state["search_query"] = (search_query_header or "").strip()
+        else:
+            st.session_state["search_query"] = (search_query_header or "").strip()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # 데이터 로드
@@ -439,16 +433,10 @@ if test.empty:
     st.stop()
 
 # -----------------------------
-# ✅ 사이드바 (selectbox 드롭다운)
+# ✅ 사이드바
 # -----------------------------
 st.sidebar.markdown("<div style='height:60px;'></div>", unsafe_allow_html=True)
 st.sidebar.header("실시간 전력 모니터링 제어 시스템")
-st.sidebar.markdown("### 검색")
-search_query_sidebar = st.sidebar.text_input("검색", value=st.session_state.get("search_query", ""), placeholder="키워드를 입력하세요...", label_visibility="collapsed", key="sidebar_search_input")
-if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=True):
-    st.session_state["search_query"] = (search_query_sidebar or "").strip()
-else:
-    st.session_state["search_query"] = (search_query_sidebar or "").strip()
 
 # 세션 상태 초기화
 st.session_state.setdefault("running", False)
@@ -456,24 +444,29 @@ st.session_state.setdefault("index", 0)
 st.session_state.setdefault("stream_df", test.iloc[0:0].copy())
 st.session_state.setdefault("playback_speed", 1.0)
 
-st.sidebar.markdown("<div style='height:300px;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='height:30px;'></div>", unsafe_allow_html=True)
 
 speed = BASE_UPDATE_INTERVAL_SEC
 
 # ✅ 접었다 펼 수 있는 제어 패널
-with st.sidebar.expander("실시간 모니터링 제어탭", expanded=False):
-    # 배속 제어
+with st.sidebar.expander("실시간 모니터링 제어탭", expanded=True):
+    # 배속 제어 - 드롭다운
     st.markdown("### 재생 속도")
-    selected_speed = st.select_slider(
-        "배속 선택",
-        options=PLAYBACK_SPEED_OPTIONS,
-        value=st.session_state.get("playback_speed", 1.0),
-        format_func=lambda x: f"X{x:g}",
-        label_visibility="collapsed",
-        key="speed_slider_expander"
+    selected_speed = st.slider(
+        "재생 속도 (배속)",
+        min_value=float(min(PLAYBACK_SPEED_OPTIONS)),
+        max_value=float(max(PLAYBACK_SPEED_OPTIONS)),
+        value=float(st.session_state.get("playback_speed", 1.0)),
+        step=0.25,  # 배속 단계 간격
+        format="X%.2f",
+        key="speed_slider"
     )
     st.session_state.playback_speed = selected_speed
+
+
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    
+    # 나머지 버튼들...
 
     # 시작/정지 버튼
     if not st.session_state.running:
@@ -492,13 +485,6 @@ with st.sidebar.expander("실시간 모니터링 제어탭", expanded=False):
         st.session_state.running = False
         st.rerun()
 
-
-# 초기화 버튼 (전체 너비)
-if st.sidebar.button("초기화", use_container_width=True, key="reset_btn", type="secondary"):
-    st.session_state.index = 0
-    st.session_state.stream_df = test.iloc[0:0].copy()
-    st.session_state.running = False
-    st.rerun()
 
 # 상태 표시
 st.sidebar.write("🟢 실행 중" if st.session_state.running else "🔴 정지")
