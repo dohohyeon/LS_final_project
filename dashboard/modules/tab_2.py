@@ -190,12 +190,7 @@ def show_tab_analysis(train):
         prev_start = prev_start.replace(day=min(prev_start.days_in_month, curr_start.day))
         prev_end   = prev_end.replace(day=min(prev_end.days_in_month, curr_end.day))
 
-<<<<<<< Updated upstream
         prev_df = df[(df[COL_TIME].dt.date >= prev_start.date()) & (df[COL_TIME].dt.date <= prev_end.date())]
-=======
-        render_metric_cards(period_df, prev_df, f"📆 {start_date} ~ {end_date} 기간 주요 지표")
-        st.caption(f" 비교 구간: 전월 동일 기간 {prev_start} ~ {prev_end}")
->>>>>>> Stashed changes
 
         # ==================================================
         # ✅ 카드 렌더링 및 캡션 처리
