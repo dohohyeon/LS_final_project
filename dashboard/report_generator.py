@@ -22,7 +22,7 @@ import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 # font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
 # data 폴더 경로에서 Nanum.ttf 로드
-font_path = os.path.join(os.getcwd(), "fonts", "NanumGothic-Regular.ttf")
+font_path = os.path.join(os.getcwd(), "dashboard", "fonts", "NanumGothic-Regular.ttf")
 fm.fontManager.addfont(font_path)
 # 폰트 이름은 TTF 내부에 정의된 이름을 따릅니다. 보통 'NanumGothic' 등으로 등록되므로, 아래 출력으로 확인하세요.
 print(fm.FontProperties(fname=font_path).get_name())  # 예: "NanumGothic"
