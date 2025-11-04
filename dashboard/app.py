@@ -450,14 +450,6 @@ if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=
 else:
     st.session_state["search_query"] = (search_query_sidebar or "").strip()
 
-
-search_query_sidebar = st.sidebar.text_input("검색", value=st.session_state.get("search_query", ""), placeholder="키워드를 입력하세요...", label_visibility="collapsed", key="sidebar_search_input")
-if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=True):
-    st.session_state["search_query"] = (search_query_sidebar or "").strip()
-else:
-    st.session_state["search_query"] = (search_query_sidebar or "").strip()
-
-
 # 세션 상태 초기화
 st.session_state.setdefault("running", False)
 st.session_state.setdefault("index", 0)
