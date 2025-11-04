@@ -7,70 +7,57 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
-import streamlit as st
+
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
-from io import BytesIO
-from docx import Document
-from docx.shared import Inches, Cm, Pt
+
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib import rcParams
 import plotly.io as pio
 
-# ---------------------------------------------------
-# ✅ 1. 폰트 설정 (Matplotlib + Plotly + Word + Streamlit 통합)
-# ---------------------------------------------------
-font_path = os.path.join(os.getcwd(), "fonts", "NanumGothic-Regular.ttf")
+# =========================
+# ✅ 폰트 설정 (경로 고정 + 강제 적용)
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 대시보드 폴더 구조에 맞춰 폰트 경로 고정 (예: dashboard/fonts/NanumGothic-Regular.ttf)
+NANUM_PATH = os.path.join(BASE_DIR, "fonts", "NanumGothic-Regular.ttf")
 
-if os.path.exists(font_path):
-    fm.fontManager.addfont(font_path)
-    font_name = fm.FontProperties(fname=font_path).get_name()
-    print(f"✅ Nanum 폰트 로드 성공: {font_name}")
+# 1) Matplotlib 등록
+if os.path.exists(NANUM_PATH):
+    try:
+        fm.fontManager.addfont(NANUM_PATH)
+        FONT_NAME = fm.FontProperties(fname=NANUM_PATH).get_name()  # 보통 "NanumGothic"
+    except Exception:
+        FONT_NAME = "Malgun Gothic"
 else:
-    font_name = "Malgun Gothic"  # 대체 폰트
-    print("⚠️ Nanum 폰트를 찾을 수 없어 Malgun Gothic 사용")
+    FONT_NAME = "Malgun Gothic"  # 윈도우 기본 한글 폰트
 
-# Matplotlib 설정
-rcParams["font.family"] = font_name
+rcParams["font.family"] = FONT_NAME
 rcParams["axes.unicode_minus"] = False
 
-# Plotly 설정
+# 2) Plotly 기본값
 pio.templates.default = "plotly_white"
-pio.templates["plotly_white"].layout.font.family = font_name
-pio.defaults.font = dict(family=font_name, size=12, color="#222")
+pio.defaults.font = dict(family=FONT_NAME, size=12, color="#222")
+# 템플릿에도 기본 폰트 넣어주기(일부 케이스 대비)
+try:
+    pio.templates["plotly_white"].layout.font.family = FONT_NAME
+except Exception:
+    pass
 
-# Word 보고서용 폰트
-WORD_FONT = font_name
+# 3) Word(본문/표)용 기본 폰트명
+WORD_FONT = FONT_NAME
 
-# ---------------------------------------------------
-# ✅ 2. CSS (기존 유지)
-# ---------------------------------------------------
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
-body, div, p, h1, h2, h3, h4, h5, h6, li, td, th, span, button, a, .stDataFrame, .stButton, .stTextInput, .stTextArea {
-    font-family: 'Noto Sans KR', sans-serif;
-}
-.stApp { background-color: #fafbfc; }
-.main-header { background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    border: 1px solid #e8eaed; margin-bottom: 2rem; text-align: center; position: relative; overflow: hidden; }
-.main-header::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
-    background: linear-gradient(90deg, #1a73e8, #4285f4, #34a853); }
-.main-header h1 { color: #1a73e8; font-size: 2.5rem; font-weight: 700; margin: 0; letter-spacing: -1px; }
-.main-header .subtitle { color: #5f6368; font-size: 1.1rem; margin-top: 0.8rem; font-weight: 400; }
-/* 나머지 기존 CSS 그대로 유지 */
-</style>
-""", unsafe_allow_html=True)
 
-# ============ 공통 표 스타일 ============
+# =========================
+# 내부 유틸: 표 스타일
+# =========================
 def format_table_uniform(table):
     table.style = "Table Grid"
     for ridx, row in enumerate(table.rows):
@@ -81,14 +68,41 @@ def format_table_uniform(table):
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for r in p.runs:
-                    r.font.name = "Malgun Gothic"
+                    r.font.name = WORD_FONT
                     r.font.size = Pt(10)
                     r.font.color.rgb = RGBColor(0, 0, 0)
                     if ridx == 0:
                         r.font.bold = True
 
 
+# =========================
+# 내부 유틸: Plotly 폰트 강제 적용
+# (Kaleido로 PNG 저장 직전에 한 번 더 강제)
+# =========================
+def _apply_korean_font(fig, family=FONT_NAME):
+    # 전체 레이아웃
+    fig.update_layout(font=dict(family=family))
+    # 축 타이틀/틱 폰트
+    for ax in [a for a in fig.layout if str(a).startswith("xaxis") or str(a).startswith("yaxis")]:
+        axis = fig.layout[ax]
+        if hasattr(axis, "title") and axis.title is not None:
+            axis.title.font = dict(family=family, size=axis.title.font.size if axis.title and axis.title.font else 12)
+        if hasattr(axis, "tickfont") and axis.tickfont is not None:
+            axis.tickfont.family = family
+    # 범례/범례 타이틀
+    if hasattr(fig.layout, "legend") and fig.layout.legend is not None:
+        if getattr(fig.layout.legend, "title", None):
+            fig.layout.legend.title.font = dict(family=family, size=12)
+        fig.layout.legend.font = dict(family=family, size=11)
+    # 주석
+    if getattr(fig.layout, "annotations", None):
+        for a in fig.layout.annotations:
+            a.font = dict(family=family, size=(a.font.size if a.font and a.font.size else 12))
+
+
+# =========================
 # ============ 보고서 생성 함수 ============
+# =========================
 def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report.docx"):
     df = df.copy()
     filtered_df = filtered_df.copy()
@@ -108,7 +122,14 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc = Document()
-    doc.styles["Normal"].font.name = "Malgun Gothic"
+    # 기본 문단 폰트
+    style = doc.styles["Normal"]
+    style.font.name = WORD_FONT
+    # 한글(동아시아) 폰트 지정
+    try:
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), WORD_FONT)
+    except Exception:
+        pass
 
     # 페이지 테두리
     sectPr = doc.sections[0]._sectPr
@@ -126,6 +147,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.runs[0].font.size = Pt(18)
     p.runs[0].bold = True
+    p.runs[0].font.name = WORD_FONT
 
     sd, ed = filtered_df["측정일시"].min(), filtered_df["측정일시"].max()
     doc.add_paragraph(f"분석 기간: {sd:%Y-%m-%d} ~ {ed:%Y-%m-%d}").alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -191,6 +213,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     )
     fig_pattern.update_layout(showlegend=False, hovermode="x unified", template="plotly_white",
                               height=700, plot_bgcolor="#ffffff", paper_bgcolor="#ffffff")
+    _apply_korean_font(fig_pattern)  # ✅ 폰트 강제
     buf = io.BytesIO()
     fig_pattern.write_image(buf, format="png")
     buf.seek(0)
@@ -245,6 +268,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
                                template="plotly_white", hovermode="x unified",
                                showlegend=False, plot_bgcolor="#fff", paper_bgcolor="#fff")
         fig_peak.update_xaxes(type="date", tickformat="%m-%d %H:%M", tickangle=45)
+        _apply_korean_font(fig_peak)  # ✅ 폰트 강제
         buf = io.BytesIO()
         fig_peak.write_image(buf, format="png")
         buf.seek(0)
@@ -268,6 +292,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
         fig_cost.update_layout(barmode="stack", template="plotly_white", hovermode="x unified",
                                plot_bgcolor="#fff", paper_bgcolor="#fff",
                                legend_title="작업유형", xaxis=dict(dtick=1), height=500)
+        _apply_korean_font(fig_cost)  # ✅ 폰트 강제
         buf = io.BytesIO()
         fig_cost.write_image(buf, format="png")
         buf.seek(0)
@@ -292,6 +317,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
                          hovermode="x unified", plot_bgcolor="#fff", paper_bgcolor="#fff")
     fig_ts.update_xaxes(type="date", tickformat="%m-%d", dtick=86400000*3,
                         tickangle=45, showgrid=True, gridcolor="#eee")
+    _apply_korean_font(fig_ts)  # ✅ 폰트 강제
     buf = io.BytesIO()
     fig_ts.write_image(buf, format="png")
     buf.seek(0)
