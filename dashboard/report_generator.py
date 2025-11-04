@@ -50,9 +50,6 @@ pio.defaults.font = dict(family=font_name, size=12, color="#222")
 # Word 보고서용 폰트
 WORD_FONT = font_name
 
-# Streamlit 기본 페이지 설정
-st.set_page_config(page_title="통합 전력 분석", layout="wide")
-
 # ---------------------------------------------------
 # ✅ 2. CSS (기존 유지)
 # ---------------------------------------------------
