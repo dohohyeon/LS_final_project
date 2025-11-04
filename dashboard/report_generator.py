@@ -22,12 +22,12 @@ import matplotlib.pyplot as plt
 font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
 if os.path.exists(font_path):
     fm.fontManager.addfont(font_path)
-    plt.rcParams["font.family"] = "NanumGothic"
+    plt.rcParams["font.family"] = "Malgun Gothic"
 
 # ===== Plotly 폰트 설정 =====
 pio.templates.default = "plotly_white"
-pio.templates["plotly_white"].layout.font.family = "NanumGothic"
-pio.defaults.font = dict(family="NanumGothic", size=12, color="#222")
+pio.templates["plotly_white"].layout.font.family = "Malgun Gothic"
+pio.defaults.font = dict(family="Malgun Gothic", size=12, color="#222")
 
 # ============ 공통 표 스타일 ============
 def format_table_uniform(table):
@@ -40,7 +40,7 @@ def format_table_uniform(table):
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for r in p.runs:
-                    r.font.name = "NanumGothic"
+                    r.font.name = "Malgun Gothic"
                     r.font.size = Pt(10)
                     r.font.color.rgb = RGBColor(0, 0, 0)
                     if ridx == 0:
@@ -67,7 +67,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc = Document()
-    doc.styles["Normal"].font.name = "NanumGothic"
+    doc.styles["Normal"].font.name = "Malgun Gothic"
 
     # 페이지 테두리
     sectPr = doc.sections[0]._sectPr
