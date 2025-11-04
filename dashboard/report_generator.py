@@ -3,33 +3,75 @@
 # ---------------------------------------------------
 
 import os, io
-import pandas as pd
-import numpy as np
-from datetime import datetime
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
-import plotly.express as px
+import streamlit as st
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import plotly.io as pio
-from matplotlib import rcParams
-
-# ===== ✅ 한글 폰트 강제 등록 (Kaleido 인식용) =====
-import matplotlib.font_manager as fm
+import plotly.express as px
+from datetime import datetime, timedelta
+import numpy as np
+from io import BytesIO
+from docx import Document
+from docx.shared import Inches, Cm, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.style import WD_STYLE_TYPE
+from docx.oxml.ns import qn
 import matplotlib.pyplot as plt
-# font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
-# data 폴더 경로에서 Nanum.ttf 로드
-font_path = os.path.join(os.getcwd(), "dashboard", "fonts", "NanumGothic-Regular.ttf")
-fm.fontManager.addfont(font_path)
-# 폰트 이름은 TTF 내부에 정의된 이름을 따릅니다. 보통 'NanumGothic' 등으로 등록되므로, 아래 출력으로 확인하세요.
-print(fm.FontProperties(fname=font_path).get_name())  # 예: "NanumGothic"
+import matplotlib.font_manager as fm
+from matplotlib import rcParams
+import plotly.io as pio
 
-# 전역 rcParams 설정
-rcParams["font.family"] = "NanumGothic"
+# ---------------------------------------------------
+# ✅ 1. 폰트 설정 (Matplotlib + Plotly + Word + Streamlit 통합)
+# ---------------------------------------------------
+font_path = os.path.join(os.getcwd(), "streamlit_", "data", "Nanum.ttf")
+
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
+    font_name = fm.FontProperties(fname=font_path).get_name()
+    print(f"✅ Nanum 폰트 로드 성공: {font_name}")
+else:
+    font_name = "Malgun Gothic"  # 대체 폰트
+    print("⚠️ Nanum 폰트를 찾을 수 없어 Malgun Gothic 사용")
+
+# Matplotlib 설정
+rcParams["font.family"] = font_name
 rcParams["axes.unicode_minus"] = False
+
+# Plotly 설정
+pio.templates.default = "plotly_white"
+pio.templates["plotly_white"].layout.font.family = font_name
+pio.defaults.font = dict(family=font_name, size=12, color="#222")
+
+# Word 보고서용 폰트
+WORD_FONT = font_name
+
+# Streamlit 기본 페이지 설정
+st.set_page_config(page_title="통합 전력 분석", layout="wide")
+
+# ---------------------------------------------------
+# ✅ 2. CSS (기존 유지)
+# ---------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+body, div, p, h1, h2, h3, h4, h5, h6, li, td, th, span, button, a, .stDataFrame, .stButton, .stTextInput, .stTextArea {
+    font-family: 'Noto Sans KR', sans-serif;
+}
+.stApp { background-color: #fafbfc; }
+.main-header { background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid #e8eaed; margin-bottom: 2rem; text-align: center; position: relative; overflow: hidden; }
+.main-header::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+    background: linear-gradient(90deg, #1a73e8, #4285f4, #34a853); }
+.main-header h1 { color: #1a73e8; font-size: 2.5rem; font-weight: 700; margin: 0; letter-spacing: -1px; }
+.main-header .subtitle { color: #5f6368; font-size: 1.1rem; margin-top: 0.8rem; font-weight: 400; }
+/* 나머지 기존 CSS 그대로 유지 */
+</style>
+""", unsafe_allow_html=True)
 
 # ============ 공통 표 스타일 ============
 def format_table_uniform(table):
