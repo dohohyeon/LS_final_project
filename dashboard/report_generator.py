@@ -14,7 +14,17 @@ from docx.oxml.ns import nsdecls
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.io as pio
 
+# ===== ① 폰트 경로 지정 =====
+FONT_PATH = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
+
+# ===== ② Plotly 폰트 등록 (폰트 family 이름으로 alias 등록) =====
+pio.kaleido.scope.default_font = "NanumGothic-Regular.ttf"
+pio.templates.default = "plotly_white"
+
+# ===== ③ Plotly 레이아웃 기본 폰트 설정 =====
+pio.templates["plotly_white"].layout.font.family = "NanumGothic-Regular.ttf"
 
 # ============ 공통 표 스타일 ============
 def format_table_uniform(table):
