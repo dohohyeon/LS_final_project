@@ -18,7 +18,7 @@ import plotly.express as px
 from datetime import datetime
 from shared import (
     COL_USAGE, COL_COST, COL_DEMAND,
-    COL_LAG_PF, COL_LEAD_PF, COL_TIME
+    COL_LAG_PF, COL_LEAD_PF, COL_TIME, COL_PEAK
 )
 
 # =========================
@@ -190,12 +190,7 @@ def show_tab_analysis(train):
         prev_start = prev_start.replace(day=min(prev_start.days_in_month, curr_start.day))
         prev_end   = prev_end.replace(day=min(prev_end.days_in_month, curr_end.day))
 
-<<<<<<< Updated upstream
         prev_df = df[(df[COL_TIME].dt.date >= prev_start.date()) & (df[COL_TIME].dt.date <= prev_end.date())]
-=======
-        render_metric_cards(period_df, prev_df, f"📆 {start_date} ~ {end_date} 기간 주요 지표")
-        st.caption(f" 비교 구간: 전월 동일 기간 {prev_start} ~ {prev_end}")
->>>>>>> Stashed changes
 
         # ==================================================
         # ✅ 카드 렌더링 및 캡션 처리
@@ -262,7 +257,7 @@ def show_tab_analysis(train):
         st.session_state["report_path_tab2"] = None
 
     # 보고서 생성 버튼
-    if st.button("보고서 생성", key="report_generate_btn", use_container_width=True):
+    if st.button("보고서 생성", key="report_generate_btn", use_container_width=True, type="primary"):
         from report_generator import generate_analysis_report
         with st.spinner("보고서를 생성 중입니다..."):
             file_name = f"./reports/electricity_report_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
@@ -358,31 +353,62 @@ def show_tab_analysis(train):
         avg_pf = np.nanmean([avg_lag_pf, avg_lead_pf])
 
         if COL_DEMAND in filtered_df.columns:
+            # 기준선 데이터 확인
+            has_peak_line = COL_PEAK in filtered_df.columns and not filtered_df[COL_PEAK].isna().all()
+
+            # 📊 기본 라인 (수요전력)
             fig_peak = px.line(
-                filtered_df, x=COL_TIME, y=COL_DEMAND,
-                title="기간 내 전력 사용량 추이 (상위 피크 3개 강조)",
+                filtered_df,
+                x=COL_TIME,
+                y=COL_DEMAND,
+                title="기간 내 전력 사용량 추이 (관리기준선 포함)",
                 labels={COL_TIME: "측정일시", COL_DEMAND: "수요전력(kW)"}
             )
 
-            top3 = filtered_df.nlargest(3, COL_DEMAND)
+            # 📈 관리기준선 추가
+            if has_peak_line:
+                fig_peak.add_scatter(
+                    x=filtered_df[COL_TIME],
+                    y=filtered_df[COL_PEAK],
+                    mode="lines",
+                    name="관리기준선(kW)",
+                    line=dict(color="#999999", width=2, dash="dash")
+                )
+
+            # 🔴 상위 피크 강조
+            top = filtered_df.nlargest(1, COL_DEMAND)
             fig_peak.add_scatter(
-                x=top3[COL_TIME], y=top3[COL_DEMAND],
+                x=top[COL_TIME],
+                y=top[COL_DEMAND],
                 mode="markers+text",
-                text=[f"피크{i+1}" for i in range(len(top3))],
+                text="최대 피크전력",
                 textposition="top center",
-                marker=dict(size=12, symbol="circle", line=dict(width=1), opacity=1.0),
-                name="상위 피크 (Top 3)"
+                marker=dict(size=16, symbol="star", color="#e74c3c", opacity=1.0),
+                name="최대 피크전력"
             )
 
+            # 🎨 레이아웃
             fig_peak.update_layout(
                 hovermode="x unified",
                 template="plotly_white",
                 legend_title="범례",
                 plot_bgcolor="#fff",
-                paper_bgcolor="#fff"
+                paper_bgcolor="#fff",
+                height=420,
+                margin=dict(t=80, b=60)
             )
+            exceed = filtered_df[filtered_df[COL_DEMAND] > filtered_df[COL_PEAK]]
+            fig_peak.add_scatter(
+                x=exceed[COL_TIME], y=exceed[COL_DEMAND],
+                mode="markers", name="기준 초과",
+                marker=dict(color="#FF0000", size=8, symbol="circle")
+            )
+
             st.plotly_chart(fig_peak, use_container_width=True)
-        
+
+        # --------------------------------------------------
+        # ⚙️ 효율 등급 색상 지정
+        # --------------------------------------------------
         if pd.isna(avg_pf):
             eff_label = "데이터 없음"
             color_code = {"value": "#999", "border": "#ccc", "bg": "#f6f6f6"}
@@ -396,6 +422,9 @@ def show_tab_analysis(train):
             eff_label = "개선 필요"
             color_code = {"value": "#dc3545", "border": "#dc3545", "bg": "#ffe8e8"}
 
+        # --------------------------------------------------
+        # ⚙️ 최대 피크발생 시각 문자열 처리
+        # --------------------------------------------------
         if peak_time is not None:
             if isinstance(peak_time, str):
                 peak_time_str = peak_time
@@ -406,10 +435,39 @@ def show_tab_analysis(train):
                     peak_time_str = str(peak_time)
         else:
             peak_time_str = "-"
-            
+
+        # --------------------------------------------------
+        # ⚙️ 기준 초과 비율 계산 (COL_DEMAND vs COL_PEAK)
+        # --------------------------------------------------
+        if COL_DEMAND in filtered_df.columns and COL_PEAK in filtered_df.columns:
+            valid_mask = filtered_df[[COL_DEMAND, COL_PEAK]].dropna()
+            if not valid_mask.empty:
+                exceed_ratio = (valid_mask[COL_DEMAND] > valid_mask[COL_PEAK]).mean() * 100
+            else:
+                exceed_ratio = np.nan
+        else:
+            exceed_ratio = np.nan
+
+        # 색상 규칙
+        if pd.isna(exceed_ratio):
+            exceed_color = {"value": "#999", "border": "#ccc", "bg": "#f6f6f6"}  # 데이터 없음
+        elif exceed_ratio <= 10:
+            exceed_color = {"value": "#28a745", "border": "#28a745", "bg": "#eaf8ea"}  # 양호
+        elif exceed_ratio <= 30:
+            exceed_color = {"value": "#ff9800", "border": "#ff9800", "bg": "#fff4e0"}  # 주의
+        else:
+            exceed_color = {"value": "#dc3545", "border": "#dc3545", "bg": "#ffe8e8"}  # 경고
+
+        # --------------------------------------------------
+        # 📊 메트릭 카드 구성
+        # --------------------------------------------------
         cards_html = "".join([
-            metric_card("피크전력", f"{peak_power:,.1f} kW" if not np.isnan(peak_power) else "-"),
-            metric_card("피크발생 시각", peak_time_str),
+            metric_card("최대 피크전력", f"{peak_power:,.1f} kW" if not np.isnan(peak_power) else "-"),
+            metric_card("최대 피크발생 시각", peak_time_str),
+            metric_card("기준 초과 비율", f"{exceed_ratio:.1f} %" if not np.isnan(exceed_ratio) else "-",
+                        value_color=exceed_color["value"],
+                        border_color=exceed_color["border"],
+                        bg_color=exceed_color["bg"]),
             metric_card("평균 지상역률", f"{avg_lag_pf:.1f} %" if not np.isnan(avg_lag_pf) else "-",
                         value_color=color_code["value"], border_color=color_code["border"], bg_color=color_code["bg"]),
             metric_card("평균 진상역률", f"{avg_lead_pf:.1f} %" if not np.isnan(avg_lead_pf) else "-",
@@ -418,6 +476,9 @@ def show_tab_analysis(train):
                         value_color=color_code["value"], border_color=color_code["border"], bg_color=color_code["bg"])
         ])
 
+        # --------------------------------------------------
+        # 💡 카드 출력
+        # --------------------------------------------------
         components.html(f"""
             <div style="border:1.5px solid #ddd; border-radius:12px;
                         background-color:#fafafa; padding:20px; margin-top:10px;">
@@ -609,6 +670,12 @@ def show_tab_analysis(train):
             .sum()
             .reset_index()
         )
+        # 🎨 작업유형 색상 고정
+        color_map = {
+            "Light_Load": "#2ecc71",   # 초록
+            "Medium_Load": "#f39c12",  # 주황
+            "Maximum_Load": "#e74c3c"  # 빨강
+        }
 
         fig_cost = px.bar(
             cost_by_type,
@@ -617,7 +684,8 @@ def show_tab_analysis(train):
             color="작업유형",
             title="시간대별 작업유형별 전기요금 현황 (누적 막대)",
             labels={COL_COST: "전기요금(원)", "시간": "시간대"},
-            text_auto=".2s"
+            text_auto=".2s",
+            color_discrete_map=color_map
         )
         fig_cost.update_layout(
             barmode="stack",
