@@ -15,19 +15,21 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
+from matplotlib import rcParams
 
 # ===== ✅ 한글 폰트 강제 등록 (Kaleido 인식용) =====
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
-font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
-if os.path.exists(font_path):
-    fm.fontManager.addfont(font_path)
-    plt.rcParams["font.family"] = "Malgun Gothic"
+# font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
+# data 폴더 경로에서 Nanum.ttf 로드
+font_path = os.path.join(os.getcwd(), "fonts", "NanumGothic-Regular.ttf")
+fm.fontManager.addfont(font_path)
+# 폰트 이름은 TTF 내부에 정의된 이름을 따릅니다. 보통 'NanumGothic' 등으로 등록되므로, 아래 출력으로 확인하세요.
+print(fm.FontProperties(fname=font_path).get_name())  # 예: "NanumGothic"
 
-# ===== Plotly 폰트 설정 =====
-pio.templates.default = "plotly_white"
-pio.templates["plotly_white"].layout.font.family = "Malgun Gothic"
-pio.defaults.font = dict(family="Malgun Gothic", size=12, color="#222")
+# 전역 rcParams 설정
+rcParams["font.family"] = "NanumGothic"
+rcParams["axes.unicode_minus"] = False
 
 # ============ 공통 표 스타일 ============
 def format_table_uniform(table):
