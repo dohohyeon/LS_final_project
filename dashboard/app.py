@@ -1,4 +1,4 @@
-# app.py
+﻿# app.py
 import json
 from pathlib import Path
 
@@ -10,6 +10,12 @@ from modules.tab_1 import show_tab_realtime
 from modules.tab_2 import show_tab_analysis
 from modules.tab_3 import show_tab_appendix
 from shared import load_train
+
+# -----------------------------
+# 재생 속도 설정
+# -----------------------------
+BASE_UPDATE_INTERVAL_SEC = 1.0
+PLAYBACK_SPEED_OPTIONS = [0.25, 0.75, 1, 2, 3, 4, 5, 10, 20]
 
 st.set_page_config(page_title="전력 모니터링 대시보드", layout="wide")
 
@@ -385,41 +391,12 @@ if LOGO_DIR.exists():
 
 if logo_files:
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    
-    # 로고(왼쪽)와 검색창(오른쪽) 배치
-    col_logo, col_search = st.columns([3, 1])
-    
-    with col_logo:
-        st.image(str(logo_files[0]), width=220)
-    
-    with col_search:
-        st.markdown('<div class="search-container">', unsafe_allow_html=True)
-        input_col, button_col = st.columns([0.68, 0.32])
-
-        with input_col:
-            user_query = st.text_input(
-                "검색",
-                value=st.session_state.get("search_query", ""),
-                placeholder="키워드를 입력하세요...",
-                label_visibility="collapsed",
-                key="header_search"
-            )
-
-        with button_col:
-            trigger_search = st.button("검색", key="header_search_button")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        cleaned_query = (user_query or "").strip()
-        if trigger_search:
-            st.session_state["search_query"] = cleaned_query
-        else:
-            st.session_state["search_query"] = cleaned_query
-    
+    st.image(str(logo_files[0]), width=220)
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.warning(f"⚠️ 로고 이미지를 찾을 수 없습니다: {LOGO_DIR}")
-    st.info("dashboard/assets/banner_image/logo_image/ 폴더에 로고 이미지를 배치해 주세요.")
+    st.info("dashboard/assets/banner_image/logo_image/ 경로에 로고 이미지를 배치해 주세요.")
+
 
 # -----------------------------
 # 데이터 로드
@@ -433,23 +410,43 @@ if train.empty:
 # -----------------------------
 st.sidebar.markdown("<div style='height:60px;'></div>", unsafe_allow_html=True)
 st.sidebar.header("실시간 전력 모니터링 제어 시스템")
+st.sidebar.markdown("### 검색")
+search_query_sidebar = st.sidebar.text_input("검색", value=st.session_state.get("search_query", ""), placeholder="키워드를 입력하세요...", label_visibility="collapsed", key="sidebar_search_input")
+if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=True):
+    st.session_state["search_query"] = (search_query_sidebar or "").strip()
+else:
+    st.session_state["search_query"] = (search_query_sidebar or "").strip()
+
 
 # 세션 상태 초기화
 st.session_state.setdefault("running", False)
 st.session_state.setdefault("index", 0)
 st.session_state.setdefault("stream_df", train.iloc[0:0].copy())
+st.session_state.setdefault("playback_speed", 1.0)
 
 st.sidebar.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-# 드롭다운으로 업데이트 간격 선택 (1초 단위)
-speed_option = st.sidebar.selectbox(
-    "업데이트 간격 설정",
-    ["1초", "2초", "3초", "4초", "5초"],
-    index=0  # 기본값: 1초
-)
+# Playback speed buttons (base interval 1s)
+st.sidebar.subheader("배속")
+speed_cols = st.sidebar.columns(3)
+num_speed_cols = len(speed_cols)
+current_speed_factor = float(st.session_state.get("playback_speed", 1.0) or 1.0)
 
-# 선택된 값을 숫자로 변환
-speed = float(speed_option.replace("초", ""))
+for idx, factor in enumerate(PLAYBACK_SPEED_OPTIONS):
+    col = speed_cols[idx % num_speed_cols]
+    is_active = abs(current_speed_factor - factor) < 1e-9
+    button_type = "primary" if is_active else "secondary"
+    if col.button(
+        f"X{factor:g}",
+        use_container_width=True,
+        key=f"speed_btn_{str(factor).replace('.', '_')}",
+        type=button_type,
+    ):
+        st.session_state.playback_speed = factor
+        st.rerun()
+
+speed = BASE_UPDATE_INTERVAL_SEC
+st.sidebar.caption(f"기준 주기 {BASE_UPDATE_INTERVAL_SEC:.2f}초 · 현재 배속: X{current_speed_factor:g}")
 
 # 시작/정지 버튼 (type으로 구분)
 if not st.session_state.running:
@@ -486,7 +483,7 @@ with tab_pred:
 
 with tab_rt:
     # ✅ 사이드바 변수 전달
-    show_tab_realtime(train, speed)
+    show_tab_realtime(train, speed, current_speed_factor)
 
 with tab_viz:
     show_tab_analysis(train)
