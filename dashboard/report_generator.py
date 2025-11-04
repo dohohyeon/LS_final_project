@@ -96,6 +96,17 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     style.font.name = WORD_FONT
     style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
 
+    # ✅ 페이지 테두리 추가 (복원)
+    sectPr = doc.sections[0]._sectPr
+    sectPr.append(parse_xml('''
+        <w:pgBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:offsetFrom="page">
+            <w:top w:val="single" w:sz="12" w:space="24" w:color="auto"/>
+            <w:left w:val="single" w:sz="12" w:space="24" w:color="auto"/>
+            <w:bottom w:val="single" w:sz="12" w:space="24" w:color="auto"/>
+            <w:right w:val="single" w:sz="12" w:space="24" w:color="auto"/>
+        </w:pgBorders>
+    '''))
+
     # 제목
     p = doc.add_paragraph("전력 데이터 통합 분석 보고서")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -107,37 +118,57 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     doc.add_paragraph(f"생성일: {datetime.now():%Y-%m-%d %H:%M}  |  작성자: 관리자").alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph()
 
-    # 1️⃣ 주요 지표
+    # ==================================================
+    # 1️⃣ 주요 지표 요약 (전월 비교 예외처리 포함)
+    # ==================================================
     doc.add_heading("1. 주요 지표 요약", level=1)
+
+    def month_range(dt: pd.Timestamp):
+        s = pd.Timestamp(dt.year, dt.month, 1)
+        e = (s + pd.offsets.MonthBegin(1)) - pd.Timedelta(microseconds=1)
+        return s, e
+
+    base_dt = pd.to_datetime(filtered_df["측정일시"].min())
+    cur_start, cur_end = month_range(base_dt)
+    prev_start = cur_start - pd.offsets.MonthBegin(1)
+    prev_end = cur_start - pd.Timedelta(microseconds=1)
+
+    prev_df = df[(df["측정일시"] >= prev_start) & (df["측정일시"] <= prev_end)]
+
+    cm_year, cm_month = cur_start.year, cur_start.month
+    pm_year, pm_month = prev_start.year, prev_start.month
+
+    def pct(curr, prev):
+        return "-" if (prev is None or pd.isna(prev) or prev == 0) else f"{(curr - prev) / prev * 100:+.1f}%"
+
     total_usage = filtered_df["전력사용량(kWh)"].sum()
     total_cost = filtered_df["전기요금(원)"].sum()
     avg_price = (total_cost / total_usage) if total_usage > 0 else 0
     carbon = total_usage * 0.000331
 
-    cm = filtered_df["측정일시"].dt.month.mode()[0]
-    pm = cm - 1 if cm > 1 else 12
-    prev_df = df[df["측정일시"].dt.month == pm]
-
-    def pct(curr, prev):
-        return "-" if (prev == 0 or pd.isna(prev)) else f"{(curr - prev) / prev * 100:+.1f}%"
-
     if not prev_df.empty:
         pu = prev_df["전력사용량(kWh)"].sum()
         pc = prev_df["전기요금(원)"].sum()
-        pp = (pc / pu) if pu > 0 else 0
+        pp = (pc / pu) if pu > 0 else np.nan
         pco = pu * 0.000331
     else:
         pu = pc = pp = pco = np.nan
 
-    t = doc.add_table(rows=2, cols=4)
     headers = ["전력사용량(kWh)", "전기요금(원)", "평균단가(원/kWh)", "탄소배출량(tCO₂)"]
     vals = [f"{total_usage:,.1f}", f"{total_cost:,.0f}", f"{avg_price:,.2f}", f"{carbon:,.3f}"]
     changes = [pct(total_usage, pu), pct(total_cost, pc), pct(avg_price, pp), pct(carbon, pco)]
+
+    t = doc.add_table(rows=2, cols=4)
     for i, h in enumerate(headers):
         t.cell(0, i).text = h
         t.cell(1, i).text = f"{vals[i]}\n({changes[i]})"
     format_table_uniform(t)
-    doc.add_paragraph(f"{cm}월 주요 지표 및 전월({pm}월) 대비 증감률을 나타냅니다.")
+
+    if prev_df.empty:
+        doc.add_paragraph(f"{cm_year}년 {cm_month}월 주요 지표입니다. 전월({pm_year}년 {pm_month}월) 데이터가 없어 증감률은 ‘-’로 표시했습니다.")
+    else:
+        doc.add_paragraph(f"{cm_year}년 {cm_month}월 주요 지표 및 전월({pm_year}년 {pm_month}월) 대비 증감률을 나타냅니다.")
+    doc.add_paragraph()
     doc.add_paragraph(
         "전반적으로 선택한 기간 동안의 전력 사용량과 요금 수준을 요약합니다. "
         "전월 대비 증감률을 함께 제시하여 에너지 사용 추세를 파악할 수 있습니다. "
@@ -181,7 +212,7 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     doc.add_paragraph()
 
     # 3️⃣ 피크 수요 및 역률 분석
-    doc.add_heading("3. 피크 수요 및 역률 분석", level=1)
+    doc.add_heading("3-1. 피크 수요 및 역률 분석", level=1)
     peak_kw = filtered_df["수요전력(kW)"].max() if "수요전력(kW)" in filtered_df else np.nan
     if "수요전력(kW)" in filtered_df.columns and not np.isnan(peak_kw):
         pidx = filtered_df["수요전력(kW)"].idxmax()
@@ -234,6 +265,92 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     )
     doc.add_paragraph()
 
+    # 3-2️⃣ 역률 변화 추이
+    doc.add_heading("3-2. 역률 변화 추이", level=1)
+    pf_df = filtered_df.sort_values("측정일시").dropna(subset=["측정일시"])
+    xvals = pf_df["측정일시"].dt.to_pydatetime()
+
+    fig_pf = go.Figure()
+    if "지상역률(%)" in pf_df:
+        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["지상역률(%)"],
+                                    mode="lines", name="지상역률(%)",
+                                    line=dict(color="#1f77b4", width=2)))
+    if "진상역률(%)" in pf_df:
+        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["진상역률(%)"],
+                                    mode="lines", name="진상역률(%)",
+                                    line=dict(color="#ff7f0e", width=2)))
+
+    fig_pf.add_hrect(y0=95, y1=100, fillcolor="rgba(40,167,69,0.15)", line_width=0)
+    fig_pf.add_hrect(y0=0, y1=90, fillcolor="rgba(220,53,69,0.12)", line_width=0)
+    fig_pf.add_hline(y=95, line_dash="dash", line_color="#28a745")
+    fig_pf.add_hline(y=90, line_dash="dash", line_color="#dc3545")
+
+    fig_pf.update_layout(title="역률 변화 추이 (지상/진상)",
+                        template="plotly_white", height=400,
+                        yaxis_title="역률(%)", xaxis_title="시간")
+    fig_pf.update_xaxes(type="date", tickformat="%m-%d %H:%M", tickangle=45)
+    _apply_korean_font(fig_pf)
+    buf = io.BytesIO()
+    fig_pf.write_image(buf, format="png")
+    buf.seek(0)
+    doc.add_picture(buf, width=Inches(6))
+    doc.add_paragraph(
+        "역률 변화 추이를 통해 감면(95% 이상) 및 할증(90% 미만) 구간을 한눈에 파악할 수 있습니다. "
+        "지상역률은 주간(09~23시), 진상역률은 야간(23~09시)에 주로 나타납니다."
+    )
+    doc.add_paragraph()
+
+    # 3-3️⃣ 역률 적용 시간대별 작업유형 구성비 (지상 / 진상)
+    doc.add_heading("3-3. 역률 적용 시간대별 작업유형 구성비 (지상 / 진상)", level=1)
+    color_map = {"Light_Load": "#2ecc71", "Medium_Load": "#f39c12", "Maximum_Load": "#e74c3c"}
+
+    for pf_label, cond in [
+        ("지상역률 적용 구간 (09시~23시)", (filtered_df["시간"] >= 9) & (filtered_df["시간"] < 23)),
+        ("진상역률 적용 구간 (23시~09시)", (filtered_df["시간"] >= 23) | (filtered_df["시간"] < 9))
+    ]:
+        sub_df = filtered_df[cond]
+        if "작업유형" not in sub_df or sub_df.empty:
+            continue
+
+        ratio_df = sub_df.groupby(["시간", "작업유형"]).size().reset_index(name="건수")
+        ratio_df["비율(%)"] = ratio_df.groupby("시간")["건수"].transform(lambda x: x / x.sum() * 100)
+        total_ratio = sub_df["작업유형"].value_counts(normalize=True).mul(100).reset_index()
+        total_ratio.columns = ["작업유형", "비율(%)"]
+
+        # ---- 좌: 누적막대 ----
+        fig_bar = px.bar(
+            ratio_df, x="시간", y="비율(%)", color="작업유형",
+            color_discrete_map=color_map,
+            title=f"{pf_label} 시간대별 작업유형 비율 (누적 막대)",
+            labels={"비율(%)": "작업유형 비율(%)"}
+        )
+        fig_bar.update_layout(barmode="stack", template="plotly_white",
+                              height=420, xaxis=dict(dtick=1), hovermode="x unified")
+        _apply_korean_font(fig_bar)
+        buf = io.BytesIO()
+        fig_bar.write_image(buf, format="png")
+        buf.seek(0)
+        doc.add_picture(buf, width=Inches(5.5))
+
+        # ---- 우: 도넛 차트 ----
+        fig_pie = px.pie(
+            total_ratio, values="비율(%)", names="작업유형",
+            title=f"{pf_label} 전체 구성비", color="작업유형",
+            color_discrete_map=color_map, hole=0.45
+        )
+        fig_pie.update_layout(template="plotly_white", height=380)
+        _apply_korean_font(fig_pie)
+        buf = io.BytesIO()
+        fig_pie.write_image(buf, format="png")
+        buf.seek(0)
+        doc.add_picture(buf, width=Inches(4.5))
+        doc.add_paragraph(
+            f"{pf_label} 구간에서 시간대별 작업유형 비율과 전체 구성비를 나타냅니다. "
+            "빨간색(Maximum_Load)은 피크 부하, 주황색(Medium_Load)은 중간 부하, "
+            "초록색(Light_Load)은 저부하를 의미합니다."
+        )
+    doc.add_paragraph()
+
     # 4️⃣ 시간대별 작업유형별 전기요금 현황
     doc.add_heading("4. 시간대별 작업유형별 전기요금 현황", level=1)
     if "작업유형" in filtered_df.columns:
@@ -282,65 +399,6 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
         "이를 바탕으로 향후 수요 예측 및 전력 계약전력 조정에 활용할 수 있습니다."
     )
     doc.add_paragraph()
-
-    # 6️⃣ 역률 변화 추이
-    doc.add_heading("6. 역률 변화 추이", level=1)
-
-    pf_df = filtered_df.sort_values("측정일시").dropna(subset=["측정일시"])
-    xvals = pf_df["측정일시"].dt.to_pydatetime()
-
-    fig_pf = go.Figure()
-    if "지상역률(%)" in pf_df:
-        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["지상역률(%)"],
-                                    mode="lines", name="지상역률(%)",
-                                    line=dict(color="#1f77b4", width=2)))
-    if "진상역률(%)" in pf_df:
-        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["진상역률(%)"],
-                                    mode="lines", name="진상역률(%)",
-                                    line=dict(color="#ff7f0e", width=2)))
-
-    # 기준 구간
-    fig_pf.add_hrect(y0=95, y1=100, fillcolor="rgba(40,167,69,0.15)", line_width=0)
-    fig_pf.add_hrect(y0=0, y1=90, fillcolor="rgba(220,53,69,0.12)", line_width=0)
-    fig_pf.add_hline(y=95, line_dash="dash", line_color="#28a745")
-    fig_pf.add_hline(y=90, line_dash="dash", line_color="#dc3545")
-
-    fig_pf.update_layout(title="역률 변화 추이 (지상/진상)",
-                        template="plotly_white", height=400,
-                        yaxis_title="역률(%)", xaxis_title="시간")
-    fig_pf.update_xaxes(type="date", tickformat="%m-%d %H:%M", tickangle=45)
-
-    buf = io.BytesIO()
-    fig_pf.write_image(buf, format="png")
-    buf.seek(0)
-    doc.add_picture(buf, width=Inches(6))
-
-    # 7️⃣ 시간대·작업유형별 저역률(90% 미만) 히트맵
-    doc.add_heading("7. 시간대·작업유형별 저역률(90% 미만) 발생 현황", level=1)
-    if "작업유형" in filtered_df.columns:
-        for pf_type, pf_col in [("지상역률", "지상역률(%)"), ("진상역률", "진상역률(%)")]:
-            if pf_col not in filtered_df: 
-                continue
-            pf_heat = filtered_df.copy()
-            pf_heat["저역률"] = (pf_heat[pf_col] < 90).astype(int)
-            heat_agg = pf_heat.groupby(["작업유형", "시간"])["저역률"].mean().reset_index()
-            heat_agg["저역률(%)"] = heat_agg["저역률"] * 100
-            pivot = heat_agg.pivot(index="작업유형", columns="시간", values="저역률(%)")
-            fig_heat = px.imshow(
-                pivot, color_continuous_scale="Reds",
-                labels={"color": "저역률 발생 비율(%)"},
-                title=f"{pf_type} 기준 저역률(90% 미만) 발생 비율"
-            )
-            fig_heat.update_layout(template="plotly_white", height=450)
-            buf = io.BytesIO()
-            fig_heat.write_image(buf, format="png")
-            buf.seek(0)
-            doc.add_picture(buf, width=Inches(6))
-            doc.add_paragraph(
-                f"{pf_type} 기준으로 시간대 및 작업유형별 저역률 비율을 나타냅니다. "
-                "붉은색이 진할수록 해당 구간의 역률 저하가 빈번하게 발생한 것입니다."
-            )
-        doc.add_paragraph()
 
     # 8️⃣ 개선사항 및 제안 (통합형: 기존 조건 + 역률/작업유형 기반)
     doc.add_heading("8. 개선사항 및 제안", level=1)
