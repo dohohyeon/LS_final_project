@@ -1,5 +1,5 @@
 # ---------------------------------------------------
-# 전력 데이터 통합 분석 보고서 생성 (폰트 통일 + 자동 삭제 + 기존 기능 100%)
+# 전력 데이터 통합 분석 보고서 생성 (폰트 통일 + 자동 삭제 + 최신 기능 반영)
 # ---------------------------------------------------
 
 import os, io, threading, time
@@ -16,40 +16,39 @@ from docx.oxml.ns import nsdecls, qn
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import plotly.io as pio
-
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-from matplotlib import rcParams
 
 # =========================
-# ✅ 환경/폰트 설정 (Streamlit Cloud용)
+# ✅ 폰트 및 그래프 설정
 # =========================
-# Streamlit Cloud에서 fonts-nanum 설치 시 시스템 경로
-# (packages.txt에 fonts-nanum 추가되어 있어야 함)
 os.environ.setdefault("FONTCONFIG_PATH", "/usr/share/fonts/truetype/nanum")
-
-NANUM_PATH = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
-# ---------------------------------------------------
-# 전역 폰트 설정 (산세리프 계열 통일)
-# ---------------------------------------------------
+WORD_FONT = "맑은 고딕"
 FONT_NAME = "Noto Sans KR, Malgun Gothic, Apple SD Gothic Neo, sans-serif"
 
-# Matplotlib
 from matplotlib import rcParams
 rcParams["font.family"] = ["Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", "sans-serif"]
 rcParams["axes.unicode_minus"] = False
 
-# Plotly
 import plotly.io as pio
 pio.templates.default = "plotly_white"
 pio.defaults.font = dict(family=FONT_NAME, size=12, color="#222")
-pio.templates["plotly_white"].layout.font.family = FONT_NAME
 
-# Word
-from docx.oxml.ns import qn
-WORD_FONT = "맑은 고딕"  # Word에서는 한국어 이름 그대로 지정 (Windows 호환성)
-
+# =========================
+# Plotly 폰트 강제 적용 (Kaleido 저장 직전)
+# =========================
+def _apply_korean_font(fig, family=FONT_NAME):
+    fig.layout.font.family = family
+    fig.update_layout(font=dict(family=family))
+    for ax in [a for a in fig.layout if str(a).startswith("xaxis") or str(a).startswith("yaxis")]:
+        axis = fig.layout[ax]
+        if hasattr(axis, "title") and axis.title:
+            axis.title.font = dict(family=family, size=12)
+        if hasattr(axis, "tickfont") and axis.tickfont:
+            axis.tickfont.family = family
+    if hasattr(fig.layout, "legend") and fig.layout.legend:
+        fig.layout.legend.font = dict(family=family, size=11)
+    if getattr(fig.layout, "annotations", None):
+        for a in fig.layout.annotations:
+            a.font = dict(family=family, size=12)
 
 # =========================
 # 공통 표 스타일
@@ -76,78 +75,32 @@ def format_table_uniform(table):
 
 
 # =========================
-# Plotly 폰트 강제 적용 (Kaleido 저장 직전)
-# =========================
-def _apply_korean_font(fig, family=FONT_NAME):
-    fig.layout.font.family = family
-    fig.update_layout(font=dict(family=family))
-    for ax in [a for a in fig.layout if str(a).startswith("xaxis") or str(a).startswith("yaxis")]:
-        axis = fig.layout[ax]
-        if hasattr(axis, "title") and axis.title:
-            axis.title.font = dict(family=family, size=12)
-        if hasattr(axis, "tickfont") and axis.tickfont:
-            axis.tickfont.family = family
-    if hasattr(fig.layout, "legend") and fig.layout.legend:
-        fig.layout.legend.font = dict(family=family, size=11)
-    if getattr(fig.layout, "annotations", None):
-        for a in fig.layout.annotations:
-            a.font = dict(family=family, size=12)
-
-
-# =========================
-# ============ 보고서 생성 함수 ============
+# 메인 보고서 함수
 # =========================
 def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report.docx"):
-    df = df.copy()
-    filtered_df = filtered_df.copy()
-
-    # 타입 보정
+    df, filtered_df = df.copy(), filtered_df.copy()
     df["측정일시"] = pd.to_datetime(df["측정일시"], errors="coerce")
     filtered_df["측정일시"] = pd.to_datetime(filtered_df["측정일시"], errors="coerce")
+    filtered_df["시간"] = filtered_df["측정일시"].dt.hour
 
-    if "시간" not in filtered_df.columns:
-        filtered_df["시간"] = filtered_df["측정일시"].dt.hour
-
+    # 수치형 변환
     for col in ["전력사용량(kWh)", "전기요금(원)", "수요전력(kW)", "지상역률(%)", "진상역률(%)"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        if col in filtered_df.columns:
-            filtered_df[col] = pd.to_numeric(filtered_df[col], errors="coerce")
+        for d in [df, filtered_df]:
+            if col in d.columns:
+                d[col] = pd.to_numeric(d[col], errors="coerce")
 
-    # 출력 폴더 보장
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # 문서 생성 + 기본 폰트
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name = WORD_FONT
-    try:
-        style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
-    except Exception:
-        pass
+    style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
 
-    # 페이지 테두리
-    sectPr = doc.sections[0]._sectPr
-    sectPr.append(parse_xml('''
-        <w:pgBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:offsetFrom="page">
-            <w:top w:val="single" w:sz="12" w:space="24" w:color="auto"/>
-            <w:left w:val="single" w:sz="12" w:space="24" w:color="auto"/>
-            <w:bottom w:val="single" w:sz="12" w:space="24" w:color="auto"/>
-            <w:right w:val="single" w:sz="12" w:space="24" w:color="auto"/>
-        </w:pgBorders>
-    '''))
-
-    # 0) 제목부
+    # 제목
     p = doc.add_paragraph("전력 데이터 통합 분석 보고서")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_run = p.runs[0]
-    p_run.font.size = Pt(18)
-    p_run.bold = True
-    p_run.font.name = WORD_FONT
-    try:
-        p_run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
-    except Exception:
-        pass
+    p.runs[0].font.size = Pt(18)
+    p.runs[0].bold = True
 
     sd, ed = filtered_df["측정일시"].min(), filtered_df["측정일시"].max()
     doc.add_paragraph(f"분석 기간: {sd:%Y-%m-%d} ~ {ed:%Y-%m-%d}").alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -330,57 +283,159 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
     )
     doc.add_paragraph()
 
-    # 6️⃣ 개선사항 및 제안
-    doc.add_heading("6. 개선사항 및 제안", level=1)
+    # 6️⃣ 역률 변화 추이
+    doc.add_heading("6. 역률 변화 추이", level=1)
+
+    pf_df = filtered_df.sort_values("측정일시").dropna(subset=["측정일시"])
+    xvals = pf_df["측정일시"].dt.to_pydatetime()
+
+    fig_pf = go.Figure()
+    if "지상역률(%)" in pf_df:
+        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["지상역률(%)"],
+                                    mode="lines", name="지상역률(%)",
+                                    line=dict(color="#1f77b4", width=2)))
+    if "진상역률(%)" in pf_df:
+        fig_pf.add_trace(go.Scatter(x=xvals, y=pf_df["진상역률(%)"],
+                                    mode="lines", name="진상역률(%)",
+                                    line=dict(color="#ff7f0e", width=2)))
+
+    # 기준 구간
+    fig_pf.add_hrect(y0=95, y1=100, fillcolor="rgba(40,167,69,0.15)", line_width=0)
+    fig_pf.add_hrect(y0=0, y1=90, fillcolor="rgba(220,53,69,0.12)", line_width=0)
+    fig_pf.add_hline(y=95, line_dash="dash", line_color="#28a745")
+    fig_pf.add_hline(y=90, line_dash="dash", line_color="#dc3545")
+
+    fig_pf.update_layout(title="역률 변화 추이 (지상/진상)",
+                        template="plotly_white", height=400,
+                        yaxis_title="역률(%)", xaxis_title="시간")
+    fig_pf.update_xaxes(type="date", tickformat="%m-%d %H:%M", tickangle=45)
+
+    buf = io.BytesIO()
+    fig_pf.write_image(buf, format="png")
+    buf.seek(0)
+    doc.add_picture(buf, width=Inches(6))
+
+    # 7️⃣ 시간대·작업유형별 저역률(90% 미만) 히트맵
+    doc.add_heading("7. 시간대·작업유형별 저역률(90% 미만) 발생 현황", level=1)
+    if "작업유형" in filtered_df.columns:
+        for pf_type, pf_col in [("지상역률", "지상역률(%)"), ("진상역률", "진상역률(%)")]:
+            if pf_col not in filtered_df: 
+                continue
+            pf_heat = filtered_df.copy()
+            pf_heat["저역률"] = (pf_heat[pf_col] < 90).astype(int)
+            heat_agg = pf_heat.groupby(["작업유형", "시간"])["저역률"].mean().reset_index()
+            heat_agg["저역률(%)"] = heat_agg["저역률"] * 100
+            pivot = heat_agg.pivot(index="작업유형", columns="시간", values="저역률(%)")
+            fig_heat = px.imshow(
+                pivot, color_continuous_scale="Reds",
+                labels={"color": "저역률 발생 비율(%)"},
+                title=f"{pf_type} 기준 저역률(90% 미만) 발생 비율"
+            )
+            fig_heat.update_layout(template="plotly_white", height=450)
+            buf = io.BytesIO()
+            fig_heat.write_image(buf, format="png")
+            buf.seek(0)
+            doc.add_picture(buf, width=Inches(6))
+            doc.add_paragraph(
+                f"{pf_type} 기준으로 시간대 및 작업유형별 저역률 비율을 나타냅니다. "
+                "붉은색이 진할수록 해당 구간의 역률 저하가 빈번하게 발생한 것입니다."
+            )
+        doc.add_paragraph()
+
+    # 8️⃣ 개선사항 및 제안 (통합형: 기존 조건 + 역률/작업유형 기반)
+    doc.add_heading("8. 개선사항 및 제안", level=1)
+    suggestions = []
+
+    # ---------- 기존 조건 유지 ----------
+    # 전월 대비 전력사용량 증가
+    if pu and not np.isnan(pu) and total_usage > pu * 1.1:
+        suggestions.append(("에너지 절감", "전월 대비 사용량이 크게 증가하였습니다. 비효율 설비 점검 및 운전시간 조정이 필요합니다."))
+
+    # 피크전력 높음
+    if not np.isnan(peak_kw) and peak_kw > 500:
+        suggestions.append(("피크 부하 관리", "피크 부하 시간대의 설비 분산 및 가동 최적화가 필요합니다."))
+
+    # 평균 역률 낮음
+    if not np.isnan(mean_pf) and mean_pf < 95:
+        suggestions.append(("역률 개선", f"평균 역률이 {mean_pf:.1f}%로 낮게 나타났습니다. 역률 보상장치(콘덴서 등) 점검을 권장합니다."))
+
+    # 평균 단가 상승
+    if not np.isnan(pp) and avg_price > pp * 1.05:
+        suggestions.append(("요금 최적화", "시간대별 요금제 검토 및 계약전력 조정이 필요합니다."))
+
+    # 작업유형별 불균형
+    if "작업유형" in filtered_df.columns:
+        g_ratio = filtered_df["작업유형"].value_counts(normalize=True)
+        if "Maximum_Load" in g_ratio and g_ratio["Maximum_Load"] > 0.6:
+            suggestions.append(("부하 분산", "‘Maximum_Load’ 구간이 전체의 60% 이상을 차지합니다. 생산 일정 재조정 및 부하 분산 검토가 필요합니다."))
+
+    # ---------- 새 조건 추가 (역률 기반) ----------
+    avg_lag = filtered_df["지상역률(%)"].mean() if "지상역률(%)" in filtered_df else np.nan
+    avg_lead = filtered_df["진상역률(%)"].mean() if "진상역률(%)" in filtered_df else np.nan
+    low_lag = (filtered_df["지상역률(%)"] < 90).mean() * 100 if "지상역률(%)" in filtered_df else 0
+    low_lead = (filtered_df["진상역률(%)"] < 90).mean() * 100 if "진상역률(%)" in filtered_df else 0
+
+    # 지상역률 저하율
+    if low_lag > 20:
+        suggestions.append(("지상역률 개선", f"지상역률이 90% 미만인 구간이 전체의 {low_lag:.1f}%입니다. 콘덴서 노후 또는 과부하 구간을 점검하십시오."))
+
+    # 진상역률 저하율
+    if low_lead > 20:
+        suggestions.append(("진상역률 개선", f"진상역률이 90% 미만인 구간이 {low_lead:.1f}%입니다. 과보상 가능성이 있으므로 리액터 조정을 검토하십시오."))
+
+    # ---------- 작업유형별 저역률 분석 ----------
+    if "작업유형" in filtered_df:
+        pf_type_df = filtered_df.assign(평균역률=filtered_df[["지상역률(%)", "진상역률(%)"]].mean(axis=1))
+        pf_type_df["저역률"] = (pf_type_df["평균역률"] < 90).astype(int)
+        low_pf_ratio = pf_type_df.groupby("작업유형")["저역률"].mean().mul(100).to_dict()
+        worst_type = max(low_pf_ratio, key=low_pf_ratio.get)
+        if low_pf_ratio[worst_type] > 30:
+            suggestions.append(("작업유형별 개선",
+                                f"‘{worst_type}’ 구간의 저역률 비율이 {low_pf_ratio[worst_type]:.1f}%로 높습니다. "
+                                "피크 시간대 부하 분산 및 보상장치 점검을 권장합니다."))
+
+    # ---------- 단기 급등 진단 ----------
+    if "수요전력(kW)" in filtered_df.columns:
+        df_peak = filtered_df.dropna(subset=["수요전력(kW)"]).sort_values("측정일시")
+        if len(df_peak) > 20:
+            last_peaks = df_peak["수요전력(kW)"].tail(3).mean()
+            prev_peaks = df_peak["수요전력(kW)"].iloc[-10:-3].mean()
+            if last_peaks > prev_peaks * 1.2:
+                suggestions.append(("단기 부하 급증", "최근 피크전력이 단기간 내 20% 이상 상승하였습니다. 특정 설비 이상 또는 운전 패턴 변화를 점검하십시오."))
+
+    # ---------- 기본 제안 ----------
+    if not suggestions:
+        suggestions = [
+            ("운영 상태 양호", "전력 및 역률 상태가 안정적으로 유지되고 있습니다. 현재 운영 패턴을 지속하십시오."),
+        ]
+
+    # 표 생성
     t2 = doc.add_table(rows=1, cols=2)
     t2.rows[0].cells[0].text, t2.rows[0].cells[1].text = "개선 항목", "내용"
-    for k, v in [
-        ("피크 부하 관리", "피크 시간대 설비 분산 및 가동 최적화"),
-        ("역률 개선", "역률 보상장치 점검 및 유지보수"),
-        ("에너지 절감", "야간 불필요 설비 자동 차단 시스템 도입"),
-        ("요금 최적화", "시간대별 요금제 및 계약전력 검토"),
-    ]:
+    for k, v in suggestions:
         r = t2.add_row().cells
         r[0].text, r[1].text = k, v
     format_table_uniform(t2)
-    doc.add_paragraph(
-        "위의 분석을 종합하면, 피크 부하 시간대의 관리와 역률 개선이 가장 주요 과제입니다. "
-        "또한 시간대별 요금제 선택과 설비 효율화는 에너지 비용 절감에 직접적인 영향을 줄 수 있습니다. "
-        "지속적인 모니터링 체계를 구축하면 월별 변화 추이를 정량적으로 평가할 수 있습니다."
-    )
 
-    # === 문서 전체 폰트 통일 (헤딩/표/본문 전부) ===
+    doc.add_paragraph("위 개선 항목은 전력·요금·피크·역률 및 작업유형별 분석 결과를 종합적으로 고려하여 자동 산출되었습니다.")
+
+
+    # === 폰트 일괄 적용 ===
     for style in doc.styles:
-        try:
-            if hasattr(style, "font"):
-                style.font.name = WORD_FONT
-                style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
-        except Exception:
-            continue
+        if hasattr(style, "font"):
+            style.font.name = WORD_FONT
+            style._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
 
-    for paragraph in doc.paragraphs:
-        for run in paragraph.runs:
-            run.font.name = WORD_FONT
+    for p in doc.paragraphs:
+        for r in p.runs:
+            r.font.name = WORD_FONT
             try:
-                run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
+                r._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
             except Exception:
                 pass
 
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        run.font.name = WORD_FONT
-                        try:
-                            run._element.rPr.rFonts.set(qn("w:eastAsia"), WORD_FONT)
-                        except Exception:
-                            pass
-
-    # 저장
+    # 저장 및 삭제 스케줄
     doc.save(output_path)
-
-    # 자동 삭제 (다운로드 여유 시간 확보용 10초)
     def delayed_delete(path):
         time.sleep(10)
         if os.path.exists(path):
@@ -388,7 +443,6 @@ def generate_analysis_report(df, filtered_df, output_path="./reports/tab2_report
                 os.remove(path)
             except Exception:
                 pass
-
     threading.Thread(target=delayed_delete, args=(output_path,), daemon=True).start()
 
     return output_path
