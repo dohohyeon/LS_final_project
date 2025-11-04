@@ -16,13 +16,15 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
-# ✅ Kaleido에 폰트 경로 인식시키기
-os.environ["KALIEDO_FONT_PATHS"] = os.path.join(os.path.dirname(__file__), "fonts")
+# ===== ✅ 한글 폰트 강제 등록 (Kaleido 인식용) =====
+import matplotlib.font_manager as fm
+import matplotlib.pyplot as plt
+font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
+    plt.rcParams["font.family"] = "NanumGothic"
 
-# ===== ① 폰트 경로 지정 =====
-FONT_PATH = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic-Regular.ttf")
-
-# ===== ② Plotly 한글 폰트 설정 =====
+# ===== Plotly 폰트 설정 =====
 pio.templates.default = "plotly_white"
 pio.templates["plotly_white"].layout.font.family = "NanumGothic"
 pio.defaults.font = dict(family="NanumGothic", size=12, color="#222")
