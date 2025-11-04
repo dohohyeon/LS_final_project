@@ -28,7 +28,7 @@ import plotly.io as pio
 # ---------------------------------------------------
 # ✅ 1. 폰트 설정 (Matplotlib + Plotly + Word + Streamlit 통합)
 # ---------------------------------------------------
-font_path = os.path.join(os.getcwd(), "dashboard", "fonts", "NanumGothic-Regular.ttf")
+font_path = os.path.join(os.getcwd(), "fonts", "NanumGothic-Regular.ttf")
 
 if os.path.exists(font_path):
     fm.fontManager.addfont(font_path)
