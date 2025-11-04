@@ -21,7 +21,7 @@ COL_LEAD_PF = "진상역률(%)"
 # 데이터 로드 및 전처리
 # =========================
 @st.cache_data
-def load_test(path="./data/raw/test_with_features.csv"):
+def load_test(path="./data/raw/test_with_threshold.csv"):
     try:
         df = pd.read_csv(path)
     except FileNotFoundError:
@@ -76,7 +76,7 @@ def load_test(path="./data/raw/test_with_features.csv"):
 # --- 탭별 헬퍼 함수 (apply_filters, metric_label, get_agg_func) 제거 ---
 # --- 탭별 상수 (THRESHOLD) 제거 ---
 
-def load_train(path="./data/raw/train_with_features.csv"):
+def load_train(path="./data/raw/train_with_threshold.csv"):
     try:
         df = pd.read_csv(path)
     except FileNotFoundError:
