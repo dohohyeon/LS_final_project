@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://unpkg.com/streamlit-component-lib/dist/index.js"></script>
+    <style>
+      :root {
+        color-scheme: light only;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: transparent;
+        color: #111111;
+      }
+
+      .flip-card-wrapper {
+        perspective: 1200px;
+        width: 100%;
+      }
+
+      .flip-card-inner {
+        position: relative;
+        width: 100%;
+        min-height: 360px;
+        transition: transform 0.6s;
+        transform-style: preserve-3d;
+      }
+
+      .flip-card-inner.flipped {
+        transform: rotateY(180deg);
+      }
+
+      .flip-card-face {
+        position: absolute;
+        width: 100%;
+        backface-visibility: hidden;
+        border-radius: 18px;
+        box-shadow: 0 8px 24px rgba(10, 31, 50, 0.15);
+        background: linear-gradient(135deg, rgba(10, 31, 50, 0.92), rgba(12, 58, 96, 0.88));
+        color: #ffffff;
+        padding: 26px 24px;
+        box-sizing: border-box;
+      }
+
+      .flip-card-front {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .flip-card-back {
+        transform: rotateY(180deg);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 244, 248, 0.92));
+        color: #111111;
+      }
+
+      .card-icon {
+        width: 90px;
+        height: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18);
+      }
+
+      .card-icon svg {
+        width: 48px;
+        height: 48px;
+        fill: #ffffff;
+      }
+
+      .card-title {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .card-subtitle {
+        font-size: 14px;
+        opacity: 0.85;
+        letter-spacing: 0.02em;
+      }
+
+      .control-section {
+        margin-bottom: 18px;
+      }
+
+      .control-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0a1f32;
+        display: block;
+        margin-bottom: 8px;
+        letter-spacing: 0.02em;
+      }
+
+      .fixed-interval {
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(10, 31, 50, 0.06);
+        border: 1px solid rgba(10, 31, 50, 0.12);
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .speed-buttons {
+        display: flex;
+        gap: 6px;
+      }
+
+      .speed-btn {
+        flex: 1;
+        padding: 8px 4px;
+        border-radius: 8px;
+        border: 1px solid rgba(10, 31, 50, 0.16);
+        background: rgba(255, 255, 255, 0.75);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #0a1f32;
+      }
+
+      .speed-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(10, 31, 50, 0.1);
+      }
+
+      .speed-btn.active {
+        background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+        color: #ffffff;
+        border-color: transparent;
+        box-shadow: 0 6px 18px rgba(245, 87, 108, 0.35);
+      }
+
+      .play-controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .control-btn {
+        flex: 1;
+        padding: 12px 6px;
+        border-radius: 10px;
+        border: 1px solid rgba(10, 31, 50, 0.16);
+        background: rgba(255, 255, 255, 0.82);
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #0a1f32;
+      }
+
+      .control-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(10, 31, 50, 0.12);
+      }
+
+      .control-btn.playing {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: #ffffff;
+        border-color: transparent;
+        box-shadow: 0 7px 20px rgba(17, 153, 142, 0.3);
+      }
+
+      .status-bar {
+        margin-top: 16px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(10, 31, 50, 0.06);
+        border: 1px solid rgba(10, 31, 50, 0.12);
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        color: #0a1f32;
+      }
+
+      .back-btn {
+        margin-top: 14px;
+        width: 100%;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(10, 31, 50, 0.18);
+        background: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #0a1f32;
+      }
+
+      .back-btn:hover {
+        transform: translateX(-3px);
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 6px 18px rgba(10, 31, 50, 0.12);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="flip-card-wrapper">
+      <div class="flip-card-inner" id="flipCardInner">
+        <div class="flip-card-face flip-card-front" id="flipCardFront">
+          <div class="card-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+              <path
+                d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.6 10.7 2.4 21.7 2.4 32.8s-.8 22.1-2.4 32.8l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.1 270.8 64 259.4 64 248s.1-22.8 1.6-33.5L22.3 175.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336c44.2 0 80-35.8 80-80s-35.8-80-80-80s-80 35.8-80 80s35.8 80 80 80z"
+                fill="#ffffff"
+              />
+            </svg>
+          </div>
+          <div class="card-title">실시간 대시보드 제어패널</div>
+          <div class="card-subtitle">(클릭하여 제어판 열기)</div>
+        </div>
+        <div class="flip-card-face flip-card-back">
+          <div class="control-section">
+            <label class="control-label">스트리밍 간격</label>
+            <div class="fixed-interval" id="fixedInterval">1.0초 (기본)</div>
+          </div>
+
+          <div class="control-section">
+            <label class="control-label">재생 속도</label>
+            <div class="speed-buttons" id="speedButtons">
+              <button class="speed-btn" data-speed="0.25">0.25x</button>
+              <button class="speed-btn" data-speed="0.5">0.5x</button>
+              <button class="speed-btn" data-speed="1.0">1x</button>
+              <button class="speed-btn" data-speed="2.0">2x</button>
+              <button class="speed-btn" data-speed="4.0">4x</button>
+            </div>
+          </div>
+
+          <div class="play-controls">
+            <button class="control-btn" id="playBtn">
+              <span id="playIcon">▶</span>
+            </button>
+            <button class="control-btn" id="resetBtn">⟲ 초기화</button>
+          </div>
+
+          <div class="status-bar" id="statusBar">⏸ 일시정지 | 1x | 1.0초</div>
+
+          <button class="back-btn" id="backBtn">◀ 뒤로가기</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const Streamlit = window.streamlitComponentLib.Streamlit;
+
+      const flipCardInner = document.getElementById("flipCardInner");
+      const flipFront = document.getElementById("flipCardFront");
+      const backBtn = document.getElementById("backBtn");
+      const playBtn = document.getElementById("playBtn");
+      const playIcon = document.getElementById("playIcon");
+      const resetBtn = document.getElementById("resetBtn");
+      const speedButtons = Array.from(document.querySelectorAll(".speed-btn"));
+      const statusBar = document.getElementById("statusBar");
+      const fixedInterval = document.getElementById("fixedInterval");
+
+      let handlersBound = false;
+      const state = {
+        running: false,
+        speed: 1.0,
+        speed_delay: 1.0,
+      };
+
+      function toggleCard() {
+        flipCardInner.classList.toggle("flipped");
+      }
+
+      function applySpeedUI() {
+        speedButtons.forEach((btn) => {
+          const speedValue = parseFloat(btn.dataset.speed);
+          if (Math.abs(speedValue - state.speed) < 1e-9) {
+            btn.classList.add("active");
+          } else {
+            btn.classList.remove("active");
+          }
+        });
+      }
+
+      function applyPlayUI() {
+        if (state.running) {
+          playBtn.classList.add("playing");
+          playIcon.textContent = "⏸";
+          playBtn.setAttribute("title", "일시정지");
+        } else {
+          playBtn.classList.remove("playing");
+          playIcon.textContent = "▶";
+          playBtn.setAttribute("title", "재생");
+        }
+      }
+
+      function updateStatus() {
+        const icon = state.running ? "⏩ 재생 중" : "⏸ 일시정지";
+        const speedLabel =
+          Math.abs(state.speed - Math.round(state.speed)) < 1e-9
+            ? `${Math.round(state.speed)}x`
+            : `${state.speed}x`;
+        const intervalLabel = `${state.speed_delay.toFixed(1)}초`;
+        statusBar.textContent = `${icon} | ${speedLabel} | ${intervalLabel}`;
+      }
+
+      function render() {
+        applySpeedUI();
+        applyPlayUI();
+        updateStatus();
+        fixedInterval.textContent = `${state.speed_delay.toFixed(1)}초 (기본)`;
+        Streamlit.setFrameHeight(document.body.scrollHeight);
+      }
+
+      function sendEvent(type, value) {
+        Streamlit.setComponentValue({ type, value });
+      }
+
+      function bindHandlers() {
+        if (handlersBound) {
+          return;
+        }
+        handlersBound = true;
+
+        flipFront.addEventListener("click", toggleCard);
+        backBtn.addEventListener("click", toggleCard);
+
+        playBtn.addEventListener("click", () => {
+          state.running = !state.running;
+          applyPlayUI();
+          updateStatus();
+          sendEvent("play", state.running);
+        });
+
+        resetBtn.addEventListener("click", () => {
+          state.running = false;
+          state.speed = 1.0;
+          applySpeedUI();
+          applyPlayUI();
+          updateStatus();
+          sendEvent("reset", true);
+        });
+
+        speedButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const newSpeed = parseFloat(btn.dataset.speed);
+            if (Math.abs(newSpeed - state.speed) < 1e-9) {
+              return;
+            }
+            state.speed = newSpeed;
+            applySpeedUI();
+            updateStatus();
+            sendEvent("speed", newSpeed);
+          });
+        });
+      }
+
+      Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, (event) => {
+        const { running = false, speed = 1.0, speed_delay = 1.0 } = event.detail.args;
+        state.running = Boolean(running);
+        state.speed = typeof speed === "number" ? speed : parseFloat(speed) || 1.0;
+        state.speed_delay =
+          typeof speed_delay === "number" ? speed_delay : parseFloat(speed_delay) || 1.0;
+        bindHandlers();
+        render();
+      });
+
+      Streamlit.setComponentReady();
+      Streamlit.setFrameHeight(document.body.scrollHeight);
+    </script>
+  </body>
+</html>
+
