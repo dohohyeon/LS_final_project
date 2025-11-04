@@ -25,6 +25,7 @@ import plotly.io as pio
 # =========================
 # ✅ 폰트 설정 (경로 고정 + 강제 적용)
 # =========================
+os.environ["FONTCONFIG_PATH"] = "/usr/share/fonts/truetype/nanum"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 대시보드 폴더 구조에 맞춰 폰트 경로 고정 (예: dashboard/fonts/NanumGothic-Regular.ttf)
 NANUM_PATH = os.path.join(BASE_DIR, "fonts", "NanumGothic-Regular.ttf")
@@ -98,6 +99,7 @@ def _apply_korean_font(fig, family=FONT_NAME):
     if getattr(fig.layout, "annotations", None):
         for a in fig.layout.annotations:
             a.font = dict(family=family, size=(a.font.size if a.font and a.font.size else 12))
+    fig.update_layout(font=dict(family="NanumGothic"))
 
 
 # =========================
