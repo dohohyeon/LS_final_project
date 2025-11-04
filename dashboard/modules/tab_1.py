@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import plotly.express as px
 import pandas as pd
 import time
@@ -50,6 +50,7 @@ def _compute_time_slot_thresholds(train_df):
         return thresholds, fallback
 
     df = train_df[[COL_TIME, COL_DEMAND]].dropna()
+
     if df.empty:
         return thresholds, fallback
 

@@ -1,4 +1,4 @@
-# app.py
+﻿# app.py
 import json
 from pathlib import Path
 
@@ -9,7 +9,13 @@ from modules.tab_0 import show_tab_home
 from modules.tab_1 import show_tab_realtime
 from modules.tab_2 import show_tab_analysis
 from modules.tab_3 import show_tab_appendix
-from shared import load_train
+from shared import load_train, load_test
+
+# -----------------------------
+# 재생 속도 설정
+# -----------------------------
+BASE_UPDATE_INTERVAL_SEC = 1.0
+PLAYBACK_SPEED_OPTIONS = [0.25, 0.75, 1, 2, 3, 4, 5, 10, 20]
 
 # -----------------------------
 # 재생 속도 설정
@@ -366,6 +372,37 @@ st.markdown("""
         width: 20px !important;
         height: 20px !important;
     }
+    /* =========================
+    📊 Tab2 전용 보고서 버튼 스타일
+    ========================= */
+    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"] {
+        width: 100% !important;
+        background-color: #007BFF !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 0 !important;
+        transition: background 0.2s ease !important;
+    }
+    .tab2-scope div[data-testid="stButton"] > button[key="report_generate_btn"]:hover {
+        background-color: #0056b3 !important;
+    }
+
+    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"] {
+        width: 100% !important;
+        background-color: #28A745 !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 0 !important;
+        margin-top: 8px !important;
+        transition: background 0.2s ease !important;
+    }
+    .tab2-scope div[data-testid="stDownloadButton"] > button[key="report_download_btn"]:hover {
+        background-color: #218838 !important;
+    }
     </style>
 """, unsafe_allow_html=True) 
 
@@ -394,12 +431,25 @@ else:
 train = load_train()
 if train.empty:
     st.stop()
+# -----------------------------
+# 데이터 로드
+# -----------------------------
+test = load_test()
+if test.empty:
+    st.stop()
 
 # -----------------------------
 # ✅ 사이드바 (selectbox 드롭다운)
 # -----------------------------
 st.sidebar.markdown("<div style='height:60px;'></div>", unsafe_allow_html=True)
 st.sidebar.header("실시간 전력 모니터링 제어 시스템")
+st.sidebar.markdown("### 검색")
+search_query_sidebar = st.sidebar.text_input("검색", value=st.session_state.get("search_query", ""), placeholder="키워드를 입력하세요...", label_visibility="collapsed", key="sidebar_search_input")
+if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=True):
+    st.session_state["search_query"] = (search_query_sidebar or "").strip()
+else:
+    st.session_state["search_query"] = (search_query_sidebar or "").strip()
+
 
 search_query_sidebar = st.sidebar.text_input("검색", value=st.session_state.get("search_query", ""), placeholder="키워드를 입력하세요...", label_visibility="collapsed", key="sidebar_search_input")
 if st.sidebar.button("검색", key="sidebar_search_button", use_container_width=True):
@@ -411,7 +461,7 @@ else:
 # 세션 상태 초기화
 st.session_state.setdefault("running", False)
 st.session_state.setdefault("index", 0)
-st.session_state.setdefault("stream_df", train.iloc[0:0].copy())
+st.session_state.setdefault("stream_df", test.iloc[0:0].copy())
 st.session_state.setdefault("playback_speed", 1.0)
 
 st.sidebar.markdown("<div style='height:300px;'></div>", unsafe_allow_html=True)
@@ -431,7 +481,6 @@ with st.sidebar.expander("실시간 모니터링 제어탭", expanded=False):
         key="speed_slider_expander"
     )
     st.session_state.playback_speed = selected_speed
-
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
     # 시작/정지 버튼
@@ -451,8 +500,17 @@ with st.sidebar.expander("실시간 모니터링 제어탭", expanded=False):
         st.session_state.running = False
         st.rerun()
 
-    # 상태 표시
-    st.write("🟢 실행 중" if st.session_state.running else "🔴 정지")
+
+# 초기화 버튼 (전체 너비)
+if st.sidebar.button("초기화", use_container_width=True, key="reset_btn", type="secondary"):
+    st.session_state.index = 0
+    st.session_state.stream_df = test.iloc[0:0].copy()
+    st.session_state.running = False
+    st.rerun()
+
+# 상태 표시
+st.sidebar.write("🟢 실행 중" if st.session_state.running else "🔴 정지")
+
 # -----------------------------
 # 탭 구성 (HOME → 실시간 → 통계 → 부록)
 # -----------------------------
@@ -468,7 +526,7 @@ with tab_pred:
 
 with tab_rt:
     # ✅ 사이드바 변수 전달
-    show_tab_realtime(train, speed, st.session_state.playback_speed)
+    show_tab_realtime(test, speed, st.session_state.playback_speed)
 
 with tab_viz:
     show_tab_analysis(train)
